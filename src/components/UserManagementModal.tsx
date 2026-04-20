@@ -67,8 +67,17 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
       const { data, error } = await supabase.functions.invoke('invite-user', {
         body: { email, role: inviteRole },
       });
+      // エラー詳細を取得（non-2xx の場合 data が null になることがある）
       if (error || data?.error) {
-        setInviteResult({ ok: false, msg: data?.error ?? error?.message ?? 'エラーが発生しました' });
+        let msg = data?.error ?? error?.message ?? 'エラーが発生しました';
+        // FunctionsHttpError から実際のレスポンスボディを取得
+        if (!data?.error && error && 'context' in error) {
+          try {
+            const body = await (error as { context: Response }).context.json();
+            if (body?.error) msg = body.error;
+          } catch { /* ignore */ }
+        }
+        setInviteResult({ ok: false, msg });
       } else {
         setInviteResult({ ok: true, msg: `${email} を「${ROLE_LABELS[inviteRole]}」として招待しました` });
         setInviteEmail('');
