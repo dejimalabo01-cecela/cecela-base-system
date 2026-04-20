@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { Property, Task, Member } from '../types';
+import { exportPropertyToCSV } from '../utils/exportUtils';
 import {
   parseDate,
   formatDisplayDate,
@@ -127,21 +128,7 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
   }
 
   function exportCSV() {
-    const rows = [
-      ['物件ID', '物件名', '担当者', '工程名', '開始日', '終了日'],
-      ...property.tasks.map(t => {
-        const assignee = members.find(m => m.id === property.assigneeId)?.name ?? '';
-        return [property.id, property.name, assignee, t.name, t.startDate ?? '', t.endDate ?? ''];
-      }),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${property.id}_${property.name}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportPropertyToCSV(property, members);
   }
 
   function handleDelete() {

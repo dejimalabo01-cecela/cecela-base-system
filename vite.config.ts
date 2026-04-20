@@ -4,11 +4,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['xlsx'],
+    include: ['xlsx-js-style'],
   },
   build: {
     commonjsOptions: {
-      include: [/xlsx/, /node_modules/],
+      include: [/xlsx-js-style/, /node_modules/],
     },
   },
 })
