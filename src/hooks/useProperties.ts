@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Property, Task } from '../types';
-import { DEFAULT_TASKS } from '../constants';
 import { supabase } from '../lib/supabase';
 
 function generateId(properties: Property[]): string {
@@ -11,15 +10,6 @@ function generateId(properties: Property[]): string {
   return `P-${String(max + 1).padStart(3, '0')}`;
 }
 
-function buildDefaultTasks(): Task[] {
-  return DEFAULT_TASKS.map((t, i) => ({
-    id: `task-${i}`,
-    name: t.name,
-    startDate: null,
-    endDate: null,
-  }));
-}
-
 export function useProperties() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -28,7 +18,7 @@ export function useProperties() {
   const load = useCallback(async () => {
     const { data: props } = await supabase
       .from('properties')
-      .select('id, name, created_at')
+      .select('id, name, created_at, assignee_id')
       .order('created_at');
 
     if (!props) { setLoading(false); return; }
@@ -42,11 +32,13 @@ export function useProperties() {
       id: p.id,
       name: p.name,
       createdAt: p.created_at,
+      assigneeId: p.assignee_id ?? null,
       tasks: (tasks ?? [])
         .filter(t => t.property_id === p.id)
         .map(t => ({
           id: t.id,
           name: t.name,
+          color: t.color ?? '#6B7280',
           startDate: t.start_date ?? null,
           endDate: t.end_date ?? null,
         })),
@@ -60,27 +52,57 @@ export function useProperties() {
 
   async function addProperty(name: string) {
     const id = generateId(properties);
-
     await supabase.from('properties').insert({ id, name });
 
-    const defaultTasks = buildDefaultTasks();
-    await supabase.from('tasks').insert(
-      defaultTasks.map((t, i) => ({
-        id: t.id,
-        property_id: id,
-        name: t.name,
-        start_date: null,
-        end_date: null,
-        order_index: i,
-      }))
-    );
+    const { data: templates } = await supabase
+      .from('task_templates')
+      .select('*')
+      .order('order_index');
+
+    if (templates && templates.length > 0) {
+      await supabase.from('tasks').insert(
+        templates.map((t, i) => ({
+          id: `${id}-task-${i}`,
+          property_id: id,
+          name: t.name,
+          color: t.color,
+          start_date: null,
+          end_date: null,
+          order_index: i,
+        }))
+      );
+    }
+
+    await load();
+    setSelectedId(id);
+  }
+
+  async function copyProperty(sourceId: string, newName: string, copyDates: boolean) {
+    const source = properties.find(p => p.id === sourceId);
+    if (!source) return;
+
+    const id = generateId(properties);
+    await supabase.from('properties').insert({ id, name: newName });
+
+    if (source.tasks.length > 0) {
+      await supabase.from('tasks').insert(
+        source.tasks.map((t, i) => ({
+          id: `${id}-task-${i}`,
+          property_id: id,
+          name: t.name,
+          color: t.color,
+          start_date: copyDates ? t.startDate : null,
+          end_date: copyDates ? t.endDate : null,
+          order_index: i,
+        }))
+      );
+    }
 
     await load();
     setSelectedId(id);
   }
 
   async function updateTask(propertyId: string, taskId: string, updates: Partial<Task>) {
-    // 楽観的更新
     setProperties(prev =>
       prev.map(p =>
         p.id !== propertyId ? p :
@@ -97,6 +119,15 @@ export function useProperties() {
       .eq('id', taskId);
   }
 
+  async function updateAssignee(propertyId: string, assigneeId: string | null) {
+    setProperties(prev =>
+      prev.map(p => p.id === propertyId ? { ...p, assigneeId } : p)
+    );
+    await supabase.from('properties')
+      .update({ assignee_id: assigneeId })
+      .eq('id', propertyId);
+  }
+
   async function deleteProperty(propertyId: string) {
     await supabase.from('properties').delete().eq('id', propertyId);
     setProperties(prev => prev.filter(p => p.id !== propertyId));
@@ -107,6 +138,6 @@ export function useProperties() {
 
   return {
     properties, selectedProperty, selectedId, loading,
-    setSelectedId, addProperty, updateTask, deleteProperty,
+    setSelectedId, addProperty, copyProperty, updateTask, updateAssignee, deleteProperty,
   };
 }

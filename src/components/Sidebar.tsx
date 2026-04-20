@@ -8,9 +8,15 @@ interface Props {
   userEmail: string;
   onSignOut: () => void;
   onChangePassword: () => void;
+  onEditTemplates: () => void;
+  onManageMembers: () => void;
 }
 
-export function Sidebar({ properties, selectedId, onSelect, onNew, userEmail, onSignOut, onChangePassword }: Props) {
+export function Sidebar({
+  properties, selectedId, onSelect, onNew,
+  userEmail, onSignOut, onChangePassword,
+  onEditTemplates, onManageMembers,
+}: Props) {
   return (
     <aside className="w-64 min-w-[16rem] h-full bg-gray-900 text-white flex flex-col">
       <div className="px-4 py-5 border-b border-gray-700">
@@ -48,6 +54,24 @@ export function Sidebar({ properties, selectedId, onSelect, onNew, userEmail, on
         )}
       </nav>
 
+      {/* Settings */}
+      <div className="px-4 py-3 border-t border-gray-700 space-y-1">
+        <div className="text-xs text-gray-600 uppercase tracking-wider mb-2">設定</div>
+        <button
+          onClick={onEditTemplates}
+          className="w-full text-left text-xs text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition"
+        >
+          工程テンプレート編集
+        </button>
+        <button
+          onClick={onManageMembers}
+          className="w-full text-left text-xs text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition"
+        >
+          担当者管理
+        </button>
+      </div>
+
+      {/* User */}
       <div className="px-4 py-3 border-t border-gray-700 space-y-2">
         <div className="text-xs text-gray-500 truncate">{userEmail}</div>
         <button

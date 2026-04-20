@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import type { Property, Task } from '../types';
-import { DEFAULT_TASKS } from '../constants';
+import type { Property, Task, Member } from '../types';
 import {
   parseDate,
   formatDisplayDate,
@@ -16,10 +15,14 @@ const CELL_W = 36;
 
 interface Props {
   property: Property;
+  members: Member[];
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
+  onUpdateAssignee: (assigneeId: string | null) => void;
+  onDelete: () => void;
+  onCopy: () => void;
 }
 
-export function GanttChart({ property, onUpdateTask }: Props) {
+export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, onDelete, onCopy }: Props) {
   const today = useMemo(() => new Date(), []);
 
   const months = useMemo(() => {
@@ -41,7 +44,6 @@ export function GanttChart({ property, onUpdateTask }: Props) {
       const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
       from = addMonths(minDate, -1);
       to = addMonths(maxDate, 2);
-      // ensure at least 12 months shown
       if (getMonthRange(from, to).length < 12) {
         to = addMonths(from, 11);
       }
@@ -61,27 +63,91 @@ export function GanttChart({ property, onUpdateTask }: Props) {
   }
   const todaySlot = getTodaySlot();
 
-  function getTaskColor(taskName: string): string {
-    const def = DEFAULT_TASKS.find(d => d.name === taskName);
-    return def?.color ?? '#6B7280';
-  }
-
   function isTodayCell(monthIdx: number, slot: number): boolean {
     return todaySlot?.monthIdx === monthIdx && todaySlot?.slot === slot;
+  }
+
+  function exportCSV() {
+    const rows = [
+      ['物件ID', '物件名', '担当者', '工程名', '開始日', '終了日'],
+      ...property.tasks.map(t => {
+        const assignee = members.find(m => m.id === property.assigneeId)?.name ?? '';
+        return [property.id, property.name, assignee, t.name, t.startDate ?? '', t.endDate ?? ''];
+      }),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${property.id}_${property.name}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleDelete() {
+    if (confirm(`「${property.name}」を削除しますか？\nこの操作は取り消せません。`)) {
+      onDelete();
+    }
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Property header */}
       <div className="px-6 py-4 bg-white border-b border-gray-200 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold">
-            {property.id}
-          </span>
-          <h1 className="text-xl font-bold text-gray-800">{property.name}</h1>
-        </div>
-        <div className="text-xs text-gray-400 mt-1">
-          登録日: {new Date(property.createdAt).toLocaleDateString('ja-JP')}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold shrink-0">
+                {property.id}
+              </span>
+              <h1 className="text-xl font-bold text-gray-800 truncate">{property.name}</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-gray-400">
+                登録日: {new Date(property.createdAt).toLocaleDateString('ja-JP')}
+              </span>
+              {/* 担当者 */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">担当者:</span>
+                <select
+                  value={property.assigneeId ?? ''}
+                  onChange={e => onUpdateAssignee(e.target.value || null)}
+                  className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                >
+                  <option value="">未設定</option>
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
+              title="CSVダウンロード"
+            >
+              <span>↓</span> CSV
+            </button>
+            <button
+              onClick={onCopy}
+              className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
+              title="この物件をコピー"
+            >
+              コピー
+            </button>
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-lg px-3 py-1.5 transition"
+              title="物件を削除"
+            >
+              削除
+            </button>
+          </div>
         </div>
       </div>
 
@@ -106,37 +172,34 @@ export function GanttChart({ property, onUpdateTask }: Props) {
             <div className="h-7 border-b border-gray-200 bg-gray-50" />
 
             {/* Task rows */}
-            {property.tasks.map(task => {
-              const color = getTaskColor(task.name);
-              return (
-                <div key={task.id} className="flex items-center border-b border-gray-100 h-11">
-                  <div
-                    className="w-44 px-3 py-2 text-xs font-medium text-gray-700 truncate border-r border-gray-200"
-                    title={task.name}
-                    style={{ borderLeft: `3px solid ${color}` }}
-                  >
-                    {task.name}
-                  </div>
-                  <div className="w-32 px-2 border-r border-gray-200">
-                    <input
-                      type="date"
-                      value={task.startDate ?? ''}
-                      onChange={e => onUpdateTask(task.id, { startDate: e.target.value || null })}
-                      className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    />
-                  </div>
-                  <div className="w-32 px-2 border-r border-gray-200">
-                    <input
-                      type="date"
-                      value={task.endDate ?? ''}
-                      min={task.startDate ?? undefined}
-                      onChange={e => onUpdateTask(task.id, { endDate: e.target.value || null })}
-                      className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    />
-                  </div>
+            {property.tasks.map(task => (
+              <div key={task.id} className="flex items-center border-b border-gray-100 h-11">
+                <div
+                  className="w-44 px-3 py-2 text-xs font-medium text-gray-700 truncate border-r border-gray-200"
+                  title={task.name}
+                  style={{ borderLeft: `3px solid ${task.color}` }}
+                >
+                  {task.name}
                 </div>
-              );
-            })}
+                <div className="w-32 px-2 border-r border-gray-200">
+                  <input
+                    type="date"
+                    value={task.startDate ?? ''}
+                    onChange={e => onUpdateTask(task.id, { startDate: e.target.value || null })}
+                    className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div className="w-32 px-2 border-r border-gray-200">
+                  <input
+                    type="date"
+                    value={task.endDate ?? ''}
+                    min={task.startDate ?? undefined}
+                    onChange={e => onUpdateTask(task.id, { endDate: e.target.value || null })}
+                    className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Right: timeline grid */}
@@ -182,7 +245,6 @@ export function GanttChart({ property, onUpdateTask }: Props) {
             {property.tasks.map(task => {
               const taskStart = parseDate(task.startDate);
               const taskEnd = parseDate(task.endDate);
-              const color = getTaskColor(task.name);
 
               return (
                 <div key={task.id} className="flex border-b border-gray-100 h-11 items-center">
@@ -197,7 +259,7 @@ export function GanttChart({ property, onUpdateTask }: Props) {
                           key={`${year}-${month}-${slot}`}
                           style={{
                             width: CELL_W,
-                            backgroundColor: filled ? color : isToday ? '#EFF6FF' : undefined,
+                            backgroundColor: filled ? task.color : isToday ? '#EFF6FF' : undefined,
                             opacity: filled ? 0.85 : 1,
                           }}
                           className={`h-6 mx-px rounded-sm border-r border-gray-100 ${
@@ -221,8 +283,8 @@ export function GanttChart({ property, onUpdateTask }: Props) {
 
       {/* Legend */}
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex flex-wrap gap-3 shrink-0">
-        {DEFAULT_TASKS.map(t => (
-          <div key={t.name} className="flex items-center gap-1.5">
+        {property.tasks.map(t => (
+          <div key={t.id} className="flex items-center gap-1.5">
             <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: t.color }} />
             <span className="text-xs text-gray-500">{t.name}</span>
           </div>
