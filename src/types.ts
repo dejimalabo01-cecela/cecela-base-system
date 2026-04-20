@@ -4,6 +4,8 @@ export interface Task {
   color: string;
   startDate: string | null; // YYYY-MM-DD
   endDate: string | null;   // YYYY-MM-DD
+  updatedAt: string | null;
+  updatedBy: string | null;
 }
 
 export interface Property {
@@ -11,6 +13,8 @@ export interface Property {
   name: string;
   createdAt: string; // ISO timestamp
   assigneeId: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
   tasks: Task[];
 }
 
@@ -24,4 +28,10 @@ export interface TaskTemplate {
 export interface Member {
   id: string;
   name: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  role: 'admin' | 'editor' | 'viewer';
 }

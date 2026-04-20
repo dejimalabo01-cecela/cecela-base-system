@@ -22,7 +22,7 @@ export function useProperties() {
   const load = useCallback(async () => {
     const { data: props } = await supabase
       .from('properties')
-      .select('id, name, created_at, assignee_id')
+      .select('*')
       .order('created_at');
 
     if (!props) { setLoading(false); return; }
@@ -33,7 +33,6 @@ export function useProperties() {
       .order('order_index');
 
     const result: Property[] = props.map(p => {
-      // property_idで絞り込んだあと、idで重複除去（念のため）
       const seen = new Set<string>();
       const propertyTasks = (tasks ?? [])
         .filter(t => t.property_id === p.id)
@@ -48,6 +47,8 @@ export function useProperties() {
           color: t.color ?? '#6B7280',
           startDate: t.start_date ?? null,
           endDate: t.end_date ?? null,
+          updatedAt: t.updated_at ?? null,
+          updatedBy: t.updated_by ?? null,
         }));
 
       return {
@@ -55,6 +56,8 @@ export function useProperties() {
         name: p.name,
         createdAt: p.created_at,
         assigneeId: p.assignee_id ?? null,
+        updatedAt: p.updated_at ?? null,
+        updatedBy: p.updated_by ?? null,
         tasks: propertyTasks,
       };
     });
@@ -78,7 +81,7 @@ export function useProperties() {
     if (templates && templates.length > 0) {
       const { error: taskError } = await supabase.from('tasks').insert(
         templates.map((t, i) => ({
-          id: uuid(),        // UUIDで一意性を保証
+          id: uuid(),
           property_id: id,
           name: t.name,
           color: t.color,
@@ -105,7 +108,7 @@ export function useProperties() {
     if (source.tasks.length > 0) {
       const { error: taskError } = await supabase.from('tasks').insert(
         source.tasks.map((t, i) => ({
-          id: uuid(),        // UUIDで一意性を保証（コピー元のIDと絶対に被らない）
+          id: uuid(),
           property_id: id,
           name: t.name,
           color: t.color,
@@ -121,30 +124,95 @@ export function useProperties() {
     setSelectedId(id);
   }
 
-  async function updateTask(propertyId: string, taskId: string, updates: Partial<Task>) {
+  async function updateTask(
+    propertyId: string,
+    taskId: string,
+    updates: Partial<Task>,
+    userEmail?: string
+  ) {
+    const now = new Date().toISOString();
     setProperties(prev =>
       prev.map(p =>
         p.id !== propertyId ? p :
-          { ...p, tasks: p.tasks.map(t => t.id !== taskId ? t : { ...t, ...updates }) }
+          {
+            ...p, tasks: p.tasks.map(t => t.id !== taskId ? t : {
+              ...t, ...updates,
+              updatedAt: now,
+              updatedBy: userEmail ?? null,
+            })
+          }
       )
     );
 
-    await supabase.from('tasks')
+    // Try full update with history columns first
+    const { error } = await supabase.from('tasks')
       .update({
         start_date: updates.startDate ?? null,
         end_date:   updates.endDate   ?? null,
+        updated_at: now,
+        updated_by: userEmail ?? null,
       })
       .eq('property_id', propertyId)
       .eq('id', taskId);
+
+    // If history columns don't exist yet, fall back to basic update
+    if (error) {
+      await supabase.from('tasks')
+        .update({
+          start_date: updates.startDate ?? null,
+          end_date:   updates.endDate   ?? null,
+        })
+        .eq('property_id', propertyId)
+        .eq('id', taskId);
+    }
   }
 
-  async function updateAssignee(propertyId: string, assigneeId: string | null) {
+  async function updateAssignee(
+    propertyId: string,
+    assigneeId: string | null,
+    userEmail?: string
+  ) {
+    const now = new Date().toISOString();
     setProperties(prev =>
-      prev.map(p => p.id === propertyId ? { ...p, assigneeId } : p)
+      prev.map(p => p.id === propertyId
+        ? { ...p, assigneeId, updatedAt: now, updatedBy: userEmail ?? null }
+        : p
+      )
     );
-    await supabase.from('properties')
-      .update({ assignee_id: assigneeId })
+
+    const { error } = await supabase.from('properties')
+      .update({ assignee_id: assigneeId, updated_at: now, updated_by: userEmail ?? null })
       .eq('id', propertyId);
+
+    if (error) {
+      await supabase.from('properties')
+        .update({ assignee_id: assigneeId })
+        .eq('id', propertyId);
+    }
+  }
+
+  async function updatePropertyName(
+    propertyId: string,
+    name: string,
+    userEmail?: string
+  ) {
+    const now = new Date().toISOString();
+    setProperties(prev =>
+      prev.map(p => p.id === propertyId
+        ? { ...p, name, updatedAt: now, updatedBy: userEmail ?? null }
+        : p
+      )
+    );
+
+    const { error } = await supabase.from('properties')
+      .update({ name, updated_at: now, updated_by: userEmail ?? null })
+      .eq('id', propertyId);
+
+    if (error) {
+      await supabase.from('properties')
+        .update({ name })
+        .eq('id', propertyId);
+    }
   }
 
   async function deleteProperty(propertyId: string) {
@@ -157,6 +225,7 @@ export function useProperties() {
 
   return {
     properties, selectedProperty, selectedId, loading,
-    setSelectedId, addProperty, copyProperty, updateTask, updateAssignee, deleteProperty,
+    setSelectedId, addProperty, copyProperty,
+    updateTask, updateAssignee, updatePropertyName, deleteProperty,
   };
 }
