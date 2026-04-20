@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faUsers, faShield, faPen, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faUsers, faShield, faPen, faEye, faPaperPlane } from '@fortawesome/free-solid-svg-icons';
 import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../types';
 
@@ -32,6 +32,11 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
+  // 招待フォーム
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   async function loadUsers() {
     setLoading(true);
     const { data } = await supabase
@@ -49,6 +54,30 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
     await supabase.from('user_profiles').update({ role: newRole }).eq('id', userId);
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
     setSaving(null);
+  }
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    const email = inviteEmail.trim();
+    if (!email) return;
+    setInviting(true);
+    setInviteResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { email },
+      });
+      if (error || data?.error) {
+        setInviteResult({ ok: false, msg: data?.error ?? error?.message ?? 'エラーが発生しました' });
+      } else {
+        setInviteResult({ ok: true, msg: `${email} に招待メールを送信しました` });
+        setInviteEmail('');
+        // ユーザーリストを再読み込み（少し待つ）
+        setTimeout(loadUsers, 1500);
+      }
+    } catch (err) {
+      setInviteResult({ ok: false, msg: String(err) });
+    }
+    setInviting(false);
   }
 
   return (
@@ -134,10 +163,41 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
           )}
         </div>
 
+        {/* 招待フォーム */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            新しいユーザーはSupabaseの「Authentication」→「Users」→「Invite user」から招待してください。
-            招待後、初回ログイン時に「編集者」として自動登録されます。
+          <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+            <FontAwesomeIcon icon={faPaperPlane} className="text-blue-500" />
+            新しいユーザーを招待
+          </p>
+          <form onSubmit={handleInvite} className="flex gap-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)}
+              placeholder="メールアドレスを入力"
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            />
+            <button
+              type="submit"
+              disabled={!inviteEmail.trim() || inviting}
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium rounded-lg px-4 transition flex items-center gap-1.5"
+            >
+              <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
+              {inviting ? '送信中...' : '招待'}
+            </button>
+          </form>
+
+          {inviteResult && (
+            <p className={`mt-2 text-xs px-3 py-2 rounded-lg border ${
+              inviteResult.ok
+                ? 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'
+                : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
+            }`}>
+              {inviteResult.msg}
+            </p>
+          )}
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+            招待されたユーザーはメールのリンクからパスワードを設定してログインできます。初期権限は「編集者」です。
           </p>
         </div>
       </div>
