@@ -9,7 +9,6 @@ import {
   faPenRuler,
   faUsers,
   faUser,
-  faGear,
   faBuilding,
   faBullhorn,
   faHandshake,
@@ -39,23 +38,23 @@ const MODULES: {
   },
   {
     id: 'marketing',
-    label: 'マーケティング',
+    label: 'マーケ',
     icon: faBullhorn,
     subMenu: [
       { id: 'responses',   label: '反響管理',        icon: faEnvelope  },
       { id: 'advertising', label: '広告・媒体管理',   icon: faNewspaper },
-      { id: 'inquiries',   label: 'お問い合わせ管理', icon: faComments  },
+      { id: 'inquiries',   label: 'お問い合わせ',     icon: faComments  },
       { id: 'mkt-report',  label: '集客レポート',     icon: faChartLine },
     ],
   },
   {
     id: 'sales',
-    label: '営業管理',
+    label: '営業',
     icon: faHandshake,
     subMenu: [
-      { id: 'customers',    label: '顧客管理',    icon: faUsers    },
-      { id: 'deals',        label: '商談管理',    icon: faHandshake},
-      { id: 'contracts',    label: '契約管理',    icon: faFileLines},
+      { id: 'customers',    label: '顧客管理',     icon: faUsers    },
+      { id: 'deals',        label: '商談管理',     icon: faHandshake},
+      { id: 'contracts',    label: '契約管理',     icon: faFileLines},
       { id: 'sales-report', label: '売上レポート', icon: faChartBar },
     ],
   },
@@ -93,114 +92,99 @@ export function Sidebar({
   const activeModuleDef = MODULES.find(m => m.id === activeModule)!;
 
   return (
-    <aside className="h-full bg-gray-900 text-white flex" style={{ width: '272px' }}>
+    <aside className="h-full bg-gray-900 text-white flex" style={{ width: '268px' }}>
 
-      {/* ═══ 左レール：モジュールアイコン ═══ */}
-      <div className="w-14 shrink-0 flex flex-col items-center bg-gray-950 border-r border-gray-800 py-3 gap-1">
+      {/* ═══════════════════════════════
+          左パネル：モジュールリスト
+      ═══════════════════════════════ */}
+      <div className="flex flex-col border-r border-gray-700 shrink-0" style={{ width: '108px' }}>
 
-        {/* ロゴ */}
-        <div className="w-9 h-9 flex items-center justify-center mb-2">
-          <span className="text-xs font-black text-blue-400 tracking-tight">CC</span>
+        {/* ロゴ＋テーマ切替 */}
+        <div className="px-3 py-4 border-b border-gray-700 flex items-center justify-between">
+          <span className="text-xs font-black text-blue-400 tracking-tight">Cecela</span>
+          <button
+            onClick={onToggleTheme}
+            title={isDark ? 'ライトモード' : 'ダークモード'}
+            className="text-gray-500 hover:text-gray-200 transition"
+          >
+            <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="text-xs" />
+          </button>
         </div>
 
-        {/* モジュールアイコン */}
-        {MODULES.map(m => (
-          <button
-            key={m.id}
-            onClick={() => onChangeModule(m.id)}
-            title={m.label}
-            className={`w-10 h-10 flex items-center justify-center rounded-xl transition ${
-              activeModule === m.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-200'
-            }`}
-          >
-            <FontAwesomeIcon icon={m.icon} className="text-base" />
-          </button>
-        ))}
+        {/* モジュールリスト */}
+        <nav className="flex-1 py-2 overflow-y-auto">
+          {MODULES.map(m => {
+            const isActive = activeModule === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => onChangeModule(m.id)}
+                className={`w-full flex items-center gap-1.5 px-3 py-2.5 text-left transition ${
+                  isActive
+                    ? 'text-white font-semibold'
+                    : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800'
+                }`}
+              >
+                {/* アクティブ矢印 */}
+                <span className="text-blue-400 text-[10px] w-2 shrink-0">
+                  {isActive ? '▶' : ''}
+                </span>
+                <span className="text-xs truncate">{m.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-        {/* スペーサー */}
-        <div className="flex-1" />
-
-        {/* ダークモード切替 */}
-        <button
-          onClick={onToggleTheme}
-          title={isDark ? 'ライトモード' : 'ダークモード'}
-          className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition"
-        >
-          <FontAwesomeIcon icon={isDark ? faSun : faMoon} />
-        </button>
-
-        {/* 設定（admin） */}
-        {isAdmin && (
-          <button
-            onClick={onEditTemplates}
-            title="設定"
-            className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition"
-          >
-            <FontAwesomeIcon icon={faGear} />
-          </button>
-        )}
-
-        {/* サインアウト */}
-        <button
-          onClick={onSignOut}
-          title="サインアウト"
-          className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-800 hover:text-red-400 transition mb-1"
-        >
-          <FontAwesomeIcon icon={faRightFromBracket} />
-        </button>
+        {/* 設定 */}
+        <div className="border-t border-gray-700 px-3 py-3">
+          <div className="text-[10px] text-gray-600 uppercase tracking-wider">設定</div>
+        </div>
       </div>
 
-      {/* ═══ 右パネル：サブメニュー ═══ */}
+      {/* ═══════════════════════════════
+          右パネル：サブメニュー
+      ═══════════════════════════════ */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
 
-        {/* モジュール名ヘッダー */}
-        <div className="px-4 py-3 border-b border-gray-700">
-          <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-0.5">Cecela</div>
-          <div className="text-sm font-bold text-white flex items-center gap-2">
-            <FontAwesomeIcon icon={activeModuleDef.icon} className="text-blue-400 text-xs" />
-            {activeModuleDef.label}
-          </div>
-        </div>
-
-        {/* ── 工程管理サブメニュー ── */}
+        {/* ── 工程管理 ── */}
         {activeModule === 'construction' && (
           <>
             <div className="px-3 py-3 border-b border-gray-700 space-y-2">
-              {canEdit && (
-                <button
-                  onClick={onNew}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg py-2 transition flex items-center justify-center gap-2"
-                >
-                  <FontAwesomeIcon icon={faPlus} />
-                  新規物件登録
-                </button>
-              )}
               <button
                 onClick={onShowList}
-                className={`w-full text-xs font-medium rounded-lg py-2 transition border flex items-center justify-center gap-2 ${
+                className={`w-full text-xs font-medium rounded-lg py-2 transition border flex items-center justify-center gap-1.5 ${
                   showList
                     ? 'bg-gray-700 border-gray-600 text-white'
                     : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
                 }`}
               >
-                <FontAwesomeIcon icon={faTableList} />
+                <FontAwesomeIcon icon={faTableList} className="text-[10px]" />
                 物件一覧
               </button>
+              {canEdit && (
+                <button
+                  onClick={onNew}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg py-2 transition flex items-center justify-center gap-1.5"
+                >
+                  <FontAwesomeIcon icon={faPlus} className="text-[10px]" />
+                  新規物件登録
+                </button>
+              )}
             </div>
-            <nav className="flex-1 overflow-y-auto py-2">
+
+            {/* 物件リスト */}
+            <nav className="flex-1 overflow-y-auto py-1">
               {properties.length === 0 ? (
-                <p className="text-gray-600 text-xs px-4 py-3">物件が登録されていません</p>
+                <p className="text-gray-600 text-xs px-3 py-3">物件が登録されていません</p>
               ) : (
                 properties.map(p => (
                   <button
                     key={p.id}
                     onClick={() => onSelect(p.id)}
-                    className={`w-full text-left px-3 py-2.5 hover:bg-gray-800 transition ${
+                    className={`w-full text-left px-3 py-2 hover:bg-gray-800 transition ${
                       !showList && selectedId === p.id
-                        ? 'bg-gray-800 border-l-4 border-blue-500'
-                        : 'border-l-4 border-transparent'
+                        ? 'bg-gray-800 border-l-2 border-blue-500'
+                        : 'border-l-2 border-transparent'
                     }`}
                   >
                     <div className="text-[10px] text-gray-500 font-mono">{p.id}</div>
@@ -212,39 +196,37 @@ export function Sidebar({
           </>
         )}
 
-        {/* ── 他モジュール（準備中サブメニュー） ── */}
+        {/* ── 他モジュール（準備中） ── */}
         {activeModule !== 'construction' && activeModuleDef.subMenu && (
-          <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+          <nav className="flex-1 overflow-y-auto py-2">
             {activeModuleDef.subMenu.map(item => (
               <div
                 key={item.id}
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-gray-600 cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-2.5 text-gray-600 cursor-not-allowed"
               >
-                <FontAwesomeIcon icon={item.icon} className="w-3.5 shrink-0 opacity-40" />
-                <span className="flex-1 text-xs">{item.label}</span>
-                <span className="text-[9px] bg-gray-800 text-gray-600 px-1.5 py-0.5 rounded shrink-0">
-                  準備中
-                </span>
+                <FontAwesomeIcon icon={item.icon} className="text-[11px] w-3 shrink-0 opacity-40" />
+                <span className="text-xs flex-1">{item.label}</span>
+                <span className="text-[9px] bg-gray-800 text-gray-600 px-1 py-0.5 rounded">準備中</span>
               </div>
             ))}
           </nav>
         )}
 
-        {/* ── 設定（右パネル下部） ── */}
+        {/* ── 設定メニュー（右パネル下部） ── */}
         {(isAdmin || canEdit) && (
-          <div className="px-3 py-3 border-t border-gray-700 space-y-0.5">
+          <div className="border-t border-gray-700 px-3 py-2 space-y-0.5">
             {isAdmin && (
               <>
                 <button
                   onClick={onEditTemplates}
-                  className="w-full text-left text-xs text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+                  className="w-full text-left text-xs text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-1.5"
                 >
                   <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
-                  工程テンプレート編集
+                  テンプレート
                 </button>
                 <button
                   onClick={onManageUsers}
-                  className="w-full text-left text-xs text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+                  className="w-full text-left text-xs text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-1.5"
                 >
                   <FontAwesomeIcon icon={faUsers} className="w-3 opacity-60" />
                   ユーザー管理
@@ -253,7 +235,7 @@ export function Sidebar({
             )}
             <button
               onClick={onManageMembers}
-              className="w-full text-left text-xs text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+              className="w-full text-left text-xs text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-1.5"
             >
               <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
               担当者管理
@@ -261,16 +243,27 @@ export function Sidebar({
           </div>
         )}
 
-        {/* ── ユーザー（右パネル最下部） ── */}
-        <div className="px-3 py-3 border-t border-gray-700 space-y-1.5">
-          <div className="text-[10px] text-gray-500 truncate px-1">{userEmail}</div>
-          <button
-            onClick={onChangePassword}
-            className="w-full text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5"
-          >
-            <FontAwesomeIcon icon={faKey} className="text-[10px]" />
-            パスワード変更
-          </button>
+        {/* ── ユーザー ── */}
+        <div className="border-t border-gray-700 px-3 py-3 space-y-1.5">
+          <div className="text-[10px] text-gray-600 truncate">{userEmail}</div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={onChangePassword}
+              title="パスワード変更"
+              className="flex-1 text-[10px] text-gray-500 hover:text-white border border-gray-700 hover:border-gray-500 rounded py-1 transition flex items-center justify-center gap-1"
+            >
+              <FontAwesomeIcon icon={faKey} className="text-[9px]" />
+              PW変更
+            </button>
+            <button
+              onClick={onSignOut}
+              title="サインアウト"
+              className="flex-1 text-[10px] text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-800 rounded py-1 transition flex items-center justify-center gap-1"
+            >
+              <FontAwesomeIcon icon={faRightFromBracket} className="text-[9px]" />
+              ログアウト
+            </button>
+          </div>
         </div>
       </div>
     </aside>
