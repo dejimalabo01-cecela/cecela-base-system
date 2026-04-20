@@ -11,6 +11,7 @@ import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { TemplateEditorModal } from './components/TemplateEditorModal';
 import { CopyPropertyModal } from './components/CopyPropertyModal';
 import { MemberManagerModal } from './components/MemberManagerModal';
+import { PropertyListView } from './components/PropertyListView';
 
 export default function App() {
   const { user, loading: authLoading, signIn, signOut } = useAuth();
@@ -24,6 +25,7 @@ export default function App() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [showList, setShowList] = useState(false);
 
   if (authLoading) {
     return (
@@ -37,12 +39,19 @@ export default function App() {
     return <LoginPage onSignIn={signIn} />;
   }
 
+  function handleSelectProperty(id: string) {
+    setSelectedId(id);
+    setShowList(false);
+  }
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
       <Sidebar
         properties={properties}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        showList={showList}
+        onSelect={handleSelectProperty}
+        onShowList={() => setShowList(true)}
         onNew={() => setShowNewModal(true)}
         userEmail={user.email ?? ''}
         onSignOut={signOut}
@@ -56,6 +65,12 @@ export default function App() {
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
             データを読み込み中...
           </div>
+        ) : showList ? (
+          <PropertyListView
+            properties={properties}
+            members={members}
+            onSelect={handleSelectProperty}
+          />
         ) : selectedProperty ? (
           <GanttChart
             property={selectedProperty}

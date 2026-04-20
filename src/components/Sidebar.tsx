@@ -3,7 +3,9 @@ import type { Property } from '../types';
 interface Props {
   properties: Property[];
   selectedId: string | null;
+  showList: boolean;
   onSelect: (id: string) => void;
+  onShowList: () => void;
   onNew: () => void;
   userEmail: string;
   onSignOut: () => void;
@@ -13,7 +15,7 @@ interface Props {
 }
 
 export function Sidebar({
-  properties, selectedId, onSelect, onNew,
+  properties, selectedId, showList, onSelect, onShowList, onNew,
   userEmail, onSignOut, onChangePassword,
   onEditTemplates, onManageMembers,
 }: Props) {
@@ -24,12 +26,22 @@ export function Sidebar({
         <div className="text-base font-bold">物件管理システム</div>
       </div>
 
-      <div className="px-4 py-3 border-b border-gray-700">
+      <div className="px-4 py-3 border-b border-gray-700 space-y-2">
         <button
           onClick={onNew}
           className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg py-2 transition"
         >
           ＋ 新規物件登録
+        </button>
+        <button
+          onClick={onShowList}
+          className={`w-full text-sm font-medium rounded-lg py-2 transition border ${
+            showList
+              ? 'bg-gray-700 border-gray-600 text-white'
+              : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
+          }`}
+        >
+          📋 物件一覧
         </button>
       </div>
 
@@ -42,7 +54,7 @@ export function Sidebar({
               key={p.id}
               onClick={() => onSelect(p.id)}
               className={`w-full text-left px-4 py-3 hover:bg-gray-800 transition ${
-                selectedId === p.id
+                !showList && selectedId === p.id
                   ? 'bg-gray-800 border-l-4 border-blue-500'
                   : 'border-l-4 border-transparent'
               }`}
