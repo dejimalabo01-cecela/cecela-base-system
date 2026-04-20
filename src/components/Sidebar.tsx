@@ -13,30 +13,72 @@ import {
   faBuilding,
   faBullhorn,
   faHandshake,
+  faNewspaper,
+  faChartLine,
+  faComments,
+  faFileLines,
+  faChartBar,
+  faEnvelope,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { Property, ModuleId } from '../types';
 import type { Role } from '../hooks/useRole';
 
-// モジュール定義（ここに追加していくだけで新メニューが増える）
-const MODULES: { id: ModuleId; label: string; shortLabel: string; icon: IconDefinition; available: boolean }[] = [
-  { id: 'construction', label: '工程管理',       shortLabel: '工程', icon: faBuilding,  available: true  },
-  { id: 'marketing',   label: 'マーケティング',  shortLabel: 'MKT',  icon: faBullhorn,  available: false },
-  { id: 'sales',       label: '営業管理',         shortLabel: '営業', icon: faHandshake, available: false },
+type SubMenuItem = {
+  id: string;
+  label: string;
+  icon: IconDefinition;
+};
+
+const MODULES: {
+  id: ModuleId;
+  label: string;
+  icon: IconDefinition;
+  available: boolean;
+  subMenu?: SubMenuItem[];
+}[] = [
+  {
+    id: 'construction',
+    label: '工程管理',
+    icon: faBuilding,
+    available: true,
+    // subMenuは動的（物件リスト）なので別途レンダリング
+  },
+  {
+    id: 'marketing',
+    label: 'マーケティング',
+    icon: faBullhorn,
+    available: true,
+    subMenu: [
+      { id: 'responses',   label: '反響管理',       icon: faEnvelope   },
+      { id: 'advertising', label: '広告・媒体管理',  icon: faNewspaper  },
+      { id: 'inquiries',   label: 'お問い合わせ管理', icon: faComments   },
+      { id: 'mkt-report',  label: '集客レポート',    icon: faChartLine  },
+    ],
+  },
+  {
+    id: 'sales',
+    label: '営業管理',
+    icon: faHandshake,
+    available: true,
+    subMenu: [
+      { id: 'customers',    label: '顧客管理',   icon: faUsers      },
+      { id: 'deals',        label: '商談管理',   icon: faHandshake  },
+      { id: 'contracts',    label: '契約管理',   icon: faFileLines  },
+      { id: 'sales-report', label: '売上レポート', icon: faChartBar   },
+    ],
+  },
 ];
 
 interface Props {
-  // モジュール
   activeModule: ModuleId;
   onChangeModule: (id: ModuleId) => void;
-  // 物件（工程管理モジュール用）
   properties: Property[];
   selectedId: string | null;
   showList: boolean;
   onSelect: (id: string) => void;
   onShowList: () => void;
   onNew: () => void;
-  // ユーザー・設定
   userEmail: string;
   onSignOut: () => void;
   onChangePassword: () => void;
@@ -57,6 +99,8 @@ export function Sidebar({
 }: Props) {
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
+
+  const activeModuleDef = MODULES.find(m => m.id === activeModule)!;
 
   return (
     <aside className="w-64 min-w-[16rem] h-full bg-gray-900 text-white flex flex-col">
@@ -81,27 +125,19 @@ export function Sidebar({
       {/* ── モジュールタブ（上段） ── */}
       <div className="px-3 py-3 border-b border-gray-700">
         <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 px-1">モジュール</div>
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {MODULES.map(m => (
             <button
               key={m.id}
-              onClick={() => m.available && onChangeModule(m.id)}
-              title={m.available ? m.label : `${m.label}（準備中）`}
+              onClick={() => onChangeModule(m.id)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
-                m.available
-                  ? activeModule === m.id
-                    ? 'bg-blue-600 text-white font-semibold'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                  : 'text-gray-600 cursor-not-allowed'
+                activeModule === m.id
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
             >
               <FontAwesomeIcon icon={m.icon} className="w-4 shrink-0" />
-              <span className="flex-1 text-left">{m.label}</span>
-              {!m.available && (
-                <span className="text-[9px] bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded font-medium">
-                  準備中
-                </span>
-              )}
+              <span>{m.label}</span>
             </button>
           ))}
         </div>
@@ -110,7 +146,7 @@ export function Sidebar({
       {/* ── モジュール別サブメニュー（下段） ── */}
       <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
 
-        {/* 工程管理サブメニュー */}
+        {/* 工程管理 */}
         {activeModule === 'construction' && (
           <>
             <div className="px-3 py-3 border-b border-gray-700 space-y-2">
@@ -135,8 +171,6 @@ export function Sidebar({
                 物件一覧
               </button>
             </div>
-
-            {/* 物件リスト */}
             <nav className="flex-1 overflow-y-auto py-2">
               {properties.length === 0 ? (
                 <p className="text-gray-600 text-xs px-4 py-3">物件が登録されていません</p>
@@ -163,17 +197,27 @@ export function Sidebar({
           </>
         )}
 
-        {/* 他モジュール（準備中）はサブメニューなし */}
-        {activeModule !== 'construction' && (
-          <div className="flex-1 flex items-center justify-center px-4">
-            <p className="text-xs text-gray-600 text-center">
-              このモジュールは準備中です
-            </p>
-          </div>
+        {/* マーケティング・営業管理（準備中サブメニュー） */}
+        {activeModule !== 'construction' && activeModuleDef.subMenu && (
+          <nav className="py-3 px-3 space-y-0.5 flex-1">
+            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-2 px-2">メニュー</div>
+            {activeModuleDef.subMenu.map(item => (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 cursor-not-allowed"
+              >
+                <FontAwesomeIcon icon={item.icon} className="w-4 shrink-0 opacity-40" />
+                <span className="flex-1 text-sm">{item.label}</span>
+                <span className="text-[9px] bg-gray-800 text-gray-600 px-1.5 py-0.5 rounded shrink-0">
+                  準備中
+                </span>
+              </div>
+            ))}
+          </nav>
         )}
       </div>
 
-      {/* ── 設定（admin/editor） ── */}
+      {/* ── 設定 ── */}
       {(isAdmin || canEdit) && (
         <div className="px-4 py-3 border-t border-gray-700 space-y-1">
           <div className="flex items-center gap-1.5 text-[10px] text-gray-600 uppercase tracking-wider mb-2">
