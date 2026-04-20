@@ -2,12 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Property, Task } from '../types';
 import { supabase } from '../lib/supabase';
 
-function generateId(properties: Property[]): string {
+function generatePropertyId(properties: Property[]): string {
   const max = properties.reduce((m, p) => {
     const n = parseInt(p.id.replace('P-', ''), 10);
     return isNaN(n) ? m : Math.max(m, n);
   }, 0);
   return `P-${String(max + 1).padStart(3, '0')}`;
+}
+
+function uuid(): string {
+  return crypto.randomUUID();
 }
 
 export function useProperties() {
@@ -28,21 +32,32 @@ export function useProperties() {
       .select('*')
       .order('order_index');
 
-    const result: Property[] = props.map(p => ({
-      id: p.id,
-      name: p.name,
-      createdAt: p.created_at,
-      assigneeId: p.assignee_id ?? null,
-      tasks: (tasks ?? [])
+    const result: Property[] = props.map(p => {
+      // property_idで絞り込んだあと、idで重複除去（念のため）
+      const seen = new Set<string>();
+      const propertyTasks = (tasks ?? [])
         .filter(t => t.property_id === p.id)
+        .filter(t => {
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        })
         .map(t => ({
           id: t.id,
           name: t.name,
           color: t.color ?? '#6B7280',
           startDate: t.start_date ?? null,
           endDate: t.end_date ?? null,
-        })),
-    }));
+        }));
+
+      return {
+        id: p.id,
+        name: p.name,
+        createdAt: p.created_at,
+        assigneeId: p.assignee_id ?? null,
+        tasks: propertyTasks,
+      };
+    });
 
     setProperties(result);
     setLoading(false);
@@ -51,8 +66,9 @@ export function useProperties() {
   useEffect(() => { load(); }, [load]);
 
   async function addProperty(name: string) {
-    const id = generateId(properties);
-    await supabase.from('properties').insert({ id, name });
+    const id = generatePropertyId(properties);
+    const { error: propError } = await supabase.from('properties').insert({ id, name });
+    if (propError) { console.error('property insert error:', propError); return; }
 
     const { data: templates } = await supabase
       .from('task_templates')
@@ -60,9 +76,9 @@ export function useProperties() {
       .order('order_index');
 
     if (templates && templates.length > 0) {
-      await supabase.from('tasks').insert(
+      const { error: taskError } = await supabase.from('tasks').insert(
         templates.map((t, i) => ({
-          id: `${id}-task-${i}`,
+          id: uuid(),        // UUIDで一意性を保証
           property_id: id,
           name: t.name,
           color: t.color,
@@ -71,6 +87,7 @@ export function useProperties() {
           order_index: i,
         }))
       );
+      if (taskError) console.error('tasks insert error:', taskError);
     }
 
     await load();
@@ -81,13 +98,14 @@ export function useProperties() {
     const source = properties.find(p => p.id === sourceId);
     if (!source) return;
 
-    const id = generateId(properties);
-    await supabase.from('properties').insert({ id, name: newName });
+    const id = generatePropertyId(properties);
+    const { error: propError } = await supabase.from('properties').insert({ id, name: newName });
+    if (propError) { console.error('property insert error:', propError); return; }
 
     if (source.tasks.length > 0) {
-      await supabase.from('tasks').insert(
+      const { error: taskError } = await supabase.from('tasks').insert(
         source.tasks.map((t, i) => ({
-          id: `${id}-task-${i}`,
+          id: uuid(),        // UUIDで一意性を保証（コピー元のIDと絶対に被らない）
           property_id: id,
           name: t.name,
           color: t.color,
@@ -96,6 +114,7 @@ export function useProperties() {
           order_index: i,
         }))
       );
+      if (taskError) console.error('tasks insert error:', taskError);
     }
 
     await load();
