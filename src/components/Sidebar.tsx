@@ -83,7 +83,7 @@ interface Props {
 export function Sidebar({
   activeModule, onChangeModule,
   properties, selectedId, showList, onSelect, onShowList, onNew,
-  userEmail, onSignOut, onChangePassword,
+  onSignOut, onChangePassword,
   onEditTemplates, onManageMembers, onManageUsers,
   isDark, onToggleTheme, role,
 }: Props) {
@@ -135,9 +135,50 @@ export function Sidebar({
           })}
         </nav>
 
-        {/* 設定 */}
-        <div className="border-t border-gray-700 px-3 py-3">
-          <div className="text-[10px] text-gray-600 uppercase tracking-wider">設定</div>
+        {/* 設定・ユーザー */}
+        <div className="border-t border-gray-700 px-2 py-2 space-y-0.5">
+          <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
+          {isAdmin && (
+            <>
+              <button
+                onClick={onEditTemplates}
+                className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
+                テンプレート
+              </button>
+              <button
+                onClick={onManageUsers}
+                className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faUsers} className="w-3 opacity-60" />
+                ユーザー管理
+              </button>
+            </>
+          )}
+          {(isAdmin || canEdit) && (
+            <button
+              onClick={onManageMembers}
+              className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
+              担当者管理
+            </button>
+          )}
+          <button
+            onClick={onChangePassword}
+            className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faKey} className="w-3 opacity-60" />
+            PW変更
+          </button>
+          <button
+            onClick={onSignOut}
+            className="w-full text-left text-[11px] text-gray-500 hover:text-red-400 px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faRightFromBracket} className="w-3 opacity-60" />
+            ログアウト
+          </button>
         </div>
       </div>
 
@@ -212,59 +253,6 @@ export function Sidebar({
           </nav>
         )}
 
-        {/* ── 設定メニュー（右パネル下部） ── */}
-        {(isAdmin || canEdit) && (
-          <div className="border-t border-gray-700 px-3 py-2 space-y-0.5">
-            {isAdmin && (
-              <>
-                <button
-                  onClick={onEditTemplates}
-                  className="w-full text-left text-xs text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-1.5"
-                >
-                  <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
-                  テンプレート
-                </button>
-                <button
-                  onClick={onManageUsers}
-                  className="w-full text-left text-xs text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-1.5"
-                >
-                  <FontAwesomeIcon icon={faUsers} className="w-3 opacity-60" />
-                  ユーザー管理
-                </button>
-              </>
-            )}
-            <button
-              onClick={onManageMembers}
-              className="w-full text-left text-xs text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-1.5"
-            >
-              <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
-              担当者管理
-            </button>
-          </div>
-        )}
-
-        {/* ── ユーザー ── */}
-        <div className="border-t border-gray-700 px-3 py-3 space-y-1.5">
-          <div className="text-[10px] text-gray-600 truncate">{userEmail}</div>
-          <div className="flex gap-1.5">
-            <button
-              onClick={onChangePassword}
-              title="パスワード変更"
-              className="flex-1 text-[10px] text-gray-500 hover:text-white border border-gray-700 hover:border-gray-500 rounded py-1 transition flex items-center justify-center gap-1"
-            >
-              <FontAwesomeIcon icon={faKey} className="text-[9px]" />
-              PW変更
-            </button>
-            <button
-              onClick={onSignOut}
-              title="サインアウト"
-              className="flex-1 text-[10px] text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-800 rounded py-1 transition flex items-center justify-center gap-1"
-            >
-              <FontAwesomeIcon icon={faRightFromBracket} className="text-[9px]" />
-              ログアウト
-            </button>
-          </div>
-        </div>
       </div>
     </aside>
   );
