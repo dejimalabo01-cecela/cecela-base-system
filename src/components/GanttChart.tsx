@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { Property, Task, Member } from '../types';
 import {
   parseDate,
@@ -22,8 +22,67 @@ interface Props {
   onCopy: () => void;
 }
 
+// ローカルで編集中の日付を管理する型
+type LocalDates = Record<string, { startDate: string; endDate: string }>;
+
 export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, onDelete, onCopy }: Props) {
   const today = useMemo(() => new Date(), []);
+
+  // ローカル状態で日付を管理（入力中は保存しない）
+  const [localDates, setLocalDates] = useState<LocalDates>({});
+  const [saving, setSaving] = useState<string | null>(null); // 保存中のtaskId
+
+  // 物件が切り替わったらローカル状態をリセット
+  useEffect(() => {
+    setLocalDates({});
+  }, [property.id]);
+
+  function getLocalDate(taskId: string, field: 'startDate' | 'endDate', fallback: string | null): string {
+    return localDates[taskId]?.[field] ?? fallback ?? '';
+  }
+
+  function handleDateChange(taskId: string, field: 'startDate' | 'endDate', value: string) {
+    setLocalDates(prev => ({
+      ...prev,
+      [taskId]: {
+        startDate: prev[taskId]?.startDate ?? (property.tasks.find(t => t.id === taskId)?.startDate ?? ''),
+        endDate: prev[taskId]?.endDate ?? (property.tasks.find(t => t.id === taskId)?.endDate ?? ''),
+        [field]: value,
+      },
+    }));
+  }
+
+  async function handleDateBlur(taskId: string, field: 'startDate' | 'endDate') {
+    const local = localDates[taskId];
+    if (!local) return;
+
+    const task = property.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const newValue = local[field] || null;
+    const oldValue = task[field];
+    if (newValue === oldValue) return; // 変更なし
+
+    setSaving(taskId);
+    await onUpdateTask(taskId, { [field]: newValue });
+    setSaving(null);
+
+    // 保存済みのローカル状態をクリア
+    setLocalDates(prev => {
+      const next = { ...prev };
+      if (next[taskId]) {
+        const updated = { ...next[taskId], [field]: newValue ?? '' };
+        // 両方がDBと一致していればエントリを削除
+        const t = property.tasks.find(t => t.id === taskId);
+        if (updated.startDate === (t?.startDate ?? '') && updated.endDate === (t?.endDate ?? '')) {
+          delete next[taskId];
+        } else {
+          next[taskId] = updated;
+        }
+      }
+      return next;
+    });
+  }
 
   const months = useMemo(() => {
     const allDates: Date[] = [];
@@ -107,7 +166,6 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
               <span className="text-xs text-gray-400">
                 登録日: {new Date(property.createdAt).toLocaleDateString('ja-JP')}
               </span>
-              {/* 担当者 */}
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-500">担当者:</span>
                 <select
@@ -124,26 +182,22 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={exportCSV}
               className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
-              title="CSVダウンロード"
             >
-              <span>↓</span> CSV
+              ↓ CSV
             </button>
             <button
               onClick={onCopy}
               className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
-              title="この物件をコピー"
             >
               コピー
             </button>
             <button
               onClick={handleDelete}
               className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-lg px-3 py-1.5 transition"
-              title="物件を削除"
             >
               削除
             </button>
@@ -156,7 +210,6 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
         <div className="inline-flex min-w-full">
           {/* Left: task info (sticky) */}
           <div className="sticky left-0 z-20 bg-white shrink-0 shadow-[2px_0_6px_rgba(0,0,0,0.08)]">
-            {/* Header rows */}
             <div className="flex">
               <div className="w-44 border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 flex items-end">
                 工程
@@ -168,43 +221,51 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
                 終了日
               </div>
             </div>
-            {/* empty row for week sub-header */}
             <div className="h-7 border-b border-gray-200 bg-gray-50" />
 
-            {/* Task rows */}
-            {property.tasks.map(task => (
-              <div key={task.id} className="flex items-center border-b border-gray-100 h-11">
-                <div
-                  className="w-44 px-3 py-2 text-xs font-medium text-gray-700 truncate border-r border-gray-200"
-                  title={task.name}
-                  style={{ borderLeft: `3px solid ${task.color}` }}
-                >
-                  {task.name}
+            {property.tasks.map(task => {
+              const isSavingThis = saving === task.id;
+              const startVal = getLocalDate(task.id, 'startDate', task.startDate);
+              const endVal = getLocalDate(task.id, 'endDate', task.endDate);
+
+              return (
+                <div key={task.id} className="flex items-center border-b border-gray-100 h-11">
+                  <div
+                    className="w-44 px-3 py-2 text-xs font-medium text-gray-700 truncate border-r border-gray-200 flex items-center gap-1"
+                    title={task.name}
+                    style={{ borderLeft: `3px solid ${task.color}` }}
+                  >
+                    <span className="truncate">{task.name}</span>
+                    {isSavingThis && (
+                      <span className="text-[10px] text-blue-400 shrink-0">保存中…</span>
+                    )}
+                  </div>
+                  <div className="w-32 px-2 border-r border-gray-200">
+                    <input
+                      type="date"
+                      value={startVal}
+                      onChange={e => handleDateChange(task.id, 'startDate', e.target.value)}
+                      onBlur={() => handleDateBlur(task.id, 'startDate')}
+                      className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div className="w-32 px-2 border-r border-gray-200">
+                    <input
+                      type="date"
+                      value={endVal}
+                      min={startVal || undefined}
+                      onChange={e => handleDateChange(task.id, 'endDate', e.target.value)}
+                      onBlur={() => handleDateBlur(task.id, 'endDate')}
+                      className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
                 </div>
-                <div className="w-32 px-2 border-r border-gray-200">
-                  <input
-                    type="date"
-                    value={task.startDate ?? ''}
-                    onChange={e => onUpdateTask(task.id, { startDate: e.target.value || null })}
-                    className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-                <div className="w-32 px-2 border-r border-gray-200">
-                  <input
-                    type="date"
-                    value={task.endDate ?? ''}
-                    min={task.startDate ?? undefined}
-                    onChange={e => onUpdateTask(task.id, { endDate: e.target.value || null })}
-                    className="w-full text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Right: timeline grid */}
           <div className="shrink-0">
-            {/* Month header */}
             <div className="flex bg-gray-50 border-b border-gray-200">
               {months.map(({ year, month }, mi) => (
                 <div
@@ -222,7 +283,6 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
               ))}
             </div>
 
-            {/* Week sub-header */}
             <div className="flex bg-gray-50 border-b border-gray-200 h-7">
               {months.map(({ year, month }) =>
                 WEEK_LABELS.map((label, wi) => (
@@ -241,7 +301,6 @@ export function GanttChart({ property, members, onUpdateTask, onUpdateAssignee, 
               )}
             </div>
 
-            {/* Task rows */}
             {property.tasks.map(task => {
               const taskStart = parseDate(task.startDate);
               const taskEnd = parseDate(task.endDate);
