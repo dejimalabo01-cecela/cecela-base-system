@@ -35,3 +35,14 @@ export interface UserProfile {
   email: string;
   role: 'admin' | 'editor' | 'viewer';
 }
+
+// サイドバーのモジュール定義
+export type ModuleId = 'construction' | 'marketing' | 'sales';
+
+export interface AppModule {
+  id: ModuleId;
+  label: string;       // フルラベル
+  shortLabel: string;  // タブ用の短いラベル
+  iconName: string;    // Font Awesome icon name
+  available: boolean;  // false = 準備中
+}
