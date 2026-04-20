@@ -6,7 +6,6 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -51,14 +50,18 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 招待するメールアドレスを取得
-    const { email } = await req.json()
+    // リクエストボディからメールとロールを取得
+    const { email, role } = await req.json()
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'メールアドレスが必要です' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+
+    // ロールのバリデーション（デフォルトは editor）
+    const validRoles = ['admin', 'editor', 'viewer']
+    const inviteRole = validRoles.includes(role) ? role : 'editor'
 
     // 招待メール送信
     const siteUrl = Deno.env.get('SITE_URL') ?? ''
@@ -67,7 +70,6 @@ Deno.serve(async (req) => {
     })
 
     if (inviteError) {
-      // すでに登録済みのユーザーへの対応
       const msg = inviteError.message.includes('already been registered')
         ? 'このメールアドレスはすでに登録されています'
         : inviteError.message
@@ -77,7 +79,22 @@ Deno.serve(async (req) => {
       })
     }
 
-    return new Response(JSON.stringify({ success: true, userId: data.user?.id }), {
+    const invitedUserId = data.user?.id
+    if (!invitedUserId) {
+      return new Response(JSON.stringify({ error: 'ユーザーIDが取得できませんでした' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 指定されたロールで user_profiles を upsert
+    await supabaseAdmin.from('user_profiles').upsert({
+      id: invitedUserId,
+      email: email,
+      role: inviteRole,
+    })
+
+    return new Response(JSON.stringify({ success: true, userId: invitedUserId, role: inviteRole }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
