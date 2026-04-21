@@ -20,8 +20,20 @@ import {
   faEnvelope,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import type { ModuleId } from '../types';
+import type { ModuleId, Property } from '../types';
 import type { Role } from '../hooks/useRole';
+
+const RECENT_LIMIT = 5;
+
+function lastEditedTime(p: Property): number {
+  const times: (string | null)[] = [p.updatedAt, p.createdAt];
+  for (const t of p.tasks) times.push(t.updatedAt);
+  const ms = times
+    .filter((t): t is string => !!t)
+    .map(t => new Date(t).getTime())
+    .filter(n => !Number.isNaN(n));
+  return ms.length > 0 ? Math.max(...ms) : 0;
+}
 
 type SubMenuItem = { id: string; label: string; icon: IconDefinition };
 
@@ -63,8 +75,11 @@ const MODULES: {
 interface Props {
   activeModule: ModuleId;
   onChangeModule: (id: ModuleId) => void;
+  properties: Property[];
+  selectedId: string | null;
   showList: boolean;
   onShowList: () => void;
+  onSelect: (id: string) => void;
   onNew: () => void;
   userEmail: string;
   onSignOut: () => void;
@@ -79,7 +94,7 @@ interface Props {
 
 export function Sidebar({
   activeModule, onChangeModule,
-  showList, onShowList, onNew,
+  properties, selectedId, showList, onShowList, onSelect, onNew,
   onSignOut, onChangePassword,
   onEditTemplates, onManageMembers, onManageUsers,
   isDark, onToggleTheme, role,
@@ -87,6 +102,10 @@ export function Sidebar({
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
   const activeModuleDef = MODULES.find(m => m.id === activeModule)!;
+
+  const recentProperties = [...properties]
+    .sort((a, b) => lastEditedTime(b) - lastEditedTime(a))
+    .slice(0, RECENT_LIMIT);
 
   return (
     <aside className="h-full bg-gray-900 text-white flex" style={{ width: '268px' }}>
@@ -192,28 +211,59 @@ export function Sidebar({
               )}
             </div>
 
-            {/* 工程管理の設定メニュー */}
-            <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-              <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
-              {isAdmin && (
-                <button
-                  onClick={onEditTemplates}
-                  className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
-                >
-                  <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
-                  テンプレート
-                </button>
+            <div className="flex-1 overflow-y-auto">
+              {/* 直近の編集物件 */}
+              {recentProperties.length > 0 && (
+                <div className="py-2 px-2 border-b border-gray-700">
+                  <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">
+                    直近の編集物件
+                  </div>
+                  <div className="space-y-0.5">
+                    {recentProperties.map(p => {
+                      const isActive = !showList && selectedId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => onSelect(p.id)}
+                          className={`w-full text-left px-2 py-1.5 rounded transition ${
+                            isActive
+                              ? 'bg-gray-800 border-l-2 border-blue-500'
+                              : 'border-l-2 border-transparent hover:bg-gray-800'
+                          }`}
+                          title={p.name}
+                        >
+                          <div className="text-[9px] text-gray-500 font-mono">{p.id}</div>
+                          <div className="text-[11px] font-medium text-gray-200 truncate">{p.name}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-              {(isAdmin || canEdit) && (
-                <button
-                  onClick={onManageMembers}
-                  className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
-                >
-                  <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
-                  担当者管理
-                </button>
-              )}
-            </nav>
+
+              {/* 工程管理の設定メニュー */}
+              <nav className="py-2 px-2 space-y-0.5">
+                <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
+                {isAdmin && (
+                  <button
+                    onClick={onEditTemplates}
+                    className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+                  >
+                    <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
+                    テンプレート
+                  </button>
+                )}
+                {(isAdmin || canEdit) && (
+                  <button
+                    onClick={onManageMembers}
+                    className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+                  >
+                    <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
+                    担当者管理
+                  </button>
+                )}
+              </nav>
+            </div>
           </>
         )}
 

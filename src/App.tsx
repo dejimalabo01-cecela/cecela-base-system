@@ -39,10 +39,10 @@ export default function App() {
   const { isDark, toggleTheme } = useTheme();
   const { role } = useRole(user?.id);
   const {
-    properties, selectedProperty, loading,
+    properties, selectedProperty, selectedId, loading,
     load: reloadProperties,
     setSelectedId, addProperty, copyProperty,
-    updateTask, updateAssignee, updatePropertyName, deleteProperty, reorderTasks,
+    updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
     syncWithTemplates,
   } = useProperties();
   const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
@@ -132,7 +132,9 @@ export default function App() {
         <PropertyListView
           properties={properties}
           members={members}
+          role={role}
           onSelect={handleSelectProperty}
+          onDeleteMany={deleteProperties}
         />
       );
     }
@@ -173,8 +175,11 @@ export default function App() {
       <Sidebar
         activeModule={activeModule}
         onChangeModule={handleChangeModule}
+        properties={properties}
+        selectedId={selectedId}
         showList={showList}
         onShowList={() => setShowList(true)}
+        onSelect={handleSelectProperty}
         onNew={() => setShowNewModal(true)}
         userEmail={userEmail}
         onSignOut={signOut}

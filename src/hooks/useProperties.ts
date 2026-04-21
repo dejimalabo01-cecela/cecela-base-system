@@ -221,6 +221,14 @@ export function useProperties() {
     setSelectedId(prev => prev === propertyId ? null : prev);
   }
 
+  async function deleteProperties(propertyIds: string[]) {
+    if (propertyIds.length === 0) return;
+    await supabase.from('properties').delete().in('id', propertyIds);
+    const idSet = new Set(propertyIds);
+    setProperties(prev => prev.filter(p => !idSet.has(p.id)));
+    setSelectedId(prev => (prev && idSet.has(prev)) ? null : prev);
+  }
+
   async function syncWithTemplates(templates: TaskTemplate[]): Promise<{ added: number; removed: number }> {
     const { data: props } = await supabase.from('properties').select('id');
     const { data: allTasks } = await supabase.from('tasks').select('property_id, id, name, order_index');
@@ -318,7 +326,7 @@ export function useProperties() {
   return {
     properties, selectedProperty, selectedId, loading,
     load, setSelectedId, addProperty, copyProperty,
-    updateTask, updateAssignee, updatePropertyName, deleteProperty, reorderTasks,
+    updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
     syncWithTemplates,
   };
 }

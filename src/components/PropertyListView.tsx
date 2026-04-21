@@ -1,15 +1,27 @@
+import { useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faDownload, faFileExcel, faBuilding } from '@fortawesome/free-solid-svg-icons';
+import {
+  faDownload, faFileExcel, faBuilding, faSearch, faXmark, faTrash,
+} from '@fortawesome/free-solid-svg-icons';
 import type { Property, Member } from '../types';
+import type { Role } from '../hooks/useRole';
 import { exportAllToExcel, exportAllToCSV } from '../utils/exportUtils';
 
 interface Props {
   properties: Property[];
   members: Member[];
+  role: Role;
   onSelect: (id: string) => void;
+  onDeleteMany: (ids: string[]) => Promise<void>;
 }
 
-export function PropertyListView({ properties, members, onSelect }: Props) {
+export function PropertyListView({ properties, members, role, onSelect, onDeleteMany }: Props) {
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  const isAdmin = role === 'admin';
+
   function getAssigneeName(property: Property) {
     return members.find(m => m.id === property.assigneeId)?.name ?? '—';
   }
@@ -28,33 +40,136 @@ export function PropertyListView({ properties, members, onSelect }: Props) {
     return Math.round((done / property.tasks.length) * 100);
   }
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return properties;
+    return properties.filter(p =>
+      p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
+    );
+  }, [properties, search]);
+
+  const selectedList = useMemo(
+    () => properties.filter(p => selected.has(p.id)),
+    [properties, selected]
+  );
+  const visibleSelectedCount = filtered.filter(p => selected.has(p.id)).length;
+  const allVisibleChecked = filtered.length > 0 && visibleSelectedCount === filtered.length;
+  const someVisibleChecked = visibleSelectedCount > 0 && !allVisibleChecked;
+
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allVisibleChecked) {
+        filtered.forEach(p => next.delete(p.id));
+      } else {
+        filtered.forEach(p => next.add(p.id));
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  async function handleBulkDelete() {
+    if (selectedList.length === 0) return;
+    const names = selectedList.slice(0, 3).map(p => `・${p.name}`).join('\n');
+    const suffix = selectedList.length > 3 ? `\n他 ${selectedList.length - 3} 件` : '';
+    if (!confirm(`選択した ${selectedList.length} 件を削除します。\n${names}${suffix}\n\nこの操作は取り消せません。`)) return;
+    setDeleting(true);
+    try {
+      await onDeleteMany(selectedList.map(p => p.id));
+      clearSelection();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function handleExportCsv() {
+    const target = selectedList.length > 0 ? selectedList : filtered;
+    exportAllToCSV(target, members);
+  }
+
+  function handleExportExcel() {
+    const target = selectedList.length > 0 ? selectedList : filtered;
+    exportAllToExcel(target, members);
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
-        <div className="flex items-center justify-between">
+      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0 space-y-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">物件一覧</h1>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">全 {properties.length} 件</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              全 {properties.length} 件
+              {search && ` / 該当 ${filtered.length} 件`}
+              {selected.size > 0 && ` / 選択 ${selected.size} 件`}
+            </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => exportAllToCSV(properties, members)}
-              disabled={properties.length === 0}
+              onClick={handleExportCsv}
+              disabled={filtered.length === 0}
               className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-4 py-2 transition disabled:opacity-40"
+              title={selected.size > 0 ? '選択した物件をCSV出力' : '全件をCSV出力'}
             >
               <FontAwesomeIcon icon={faDownload} />
-              CSV一括出力
+              CSV{selected.size > 0 ? `（${selected.size}件）` : '一括出力'}
             </button>
             <button
-              onClick={() => exportAllToExcel(properties, members)}
-              disabled={properties.length === 0}
+              onClick={handleExportExcel}
+              disabled={filtered.length === 0}
               className="flex items-center gap-1.5 text-sm text-white bg-green-600 hover:bg-green-500 rounded-lg px-4 py-2 transition disabled:opacity-40"
+              title={selected.size > 0 ? '選択した物件をExcel出力' : '全件をExcel出力'}
             >
               <FontAwesomeIcon icon={faFileExcel} />
-              Excel一括出力
+              Excel{selected.size > 0 ? `（${selected.size}件）` : '一括出力'}
             </button>
+            {isAdmin && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={selected.size === 0 || deleting}
+                className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 border border-red-300 dark:border-red-700 hover:border-red-500 rounded-lg px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                title="選択した物件を削除"
+              >
+                <FontAwesomeIcon icon={faTrash} />
+                {deleting ? '削除中…' : `削除${selected.size > 0 ? `（${selected.size}件）` : ''}`}
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative max-w-md">
+          <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="物件名・物件IDで検索"
+            className="w-full pl-9 pr-9 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+              title="クリア"
+            >
+              <FontAwesomeIcon icon={faXmark} className="text-xs" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -65,11 +180,27 @@ export function PropertyListView({ properties, members, onSelect }: Props) {
             <FontAwesomeIcon icon={faBuilding} className="text-6xl mb-4 opacity-30" />
             <p className="text-lg font-medium">物件が登録されていません</p>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-600">
+            <FontAwesomeIcon icon={faSearch} className="text-6xl mb-4 opacity-30" />
+            <p className="text-lg font-medium">該当する物件がありません</p>
+            <p className="text-sm mt-1">検索条件を変更してください</p>
+          </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleChecked}
+                      ref={el => { if (el) el.indeterminate = someVisibleChecked; }}
+                      onChange={toggleAllVisible}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      aria-label="全件選択"
+                    />
+                  </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-24">物件ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400">物件名</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">担当者</th>
@@ -79,18 +210,30 @@ export function PropertyListView({ properties, members, onSelect }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {properties.map((p, idx) => {
+                {filtered.map((p, idx) => {
                   const progress = getProgress(p);
+                  const isChecked = selected.has(p.id);
                   return (
                     <tr
                       key={p.id}
                       onClick={() => onSelect(p.id)}
                       className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition ${
-                        idx % 2 === 0
-                          ? 'bg-white dark:bg-gray-800'
-                          : 'bg-gray-50/50 dark:bg-gray-800/50'
+                        isChecked
+                          ? 'bg-blue-50/80 dark:bg-blue-900/30'
+                          : idx % 2 === 0
+                            ? 'bg-white dark:bg-gray-800'
+                            : 'bg-gray-50/50 dark:bg-gray-800/50'
                       }`}
                     >
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleOne(p.id)}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          aria-label={`${p.name} を選択`}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded">
                           {p.id}
