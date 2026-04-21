@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faGripVertical } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faGripVertical, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import {
   DndContext,
   closestCenter,
@@ -27,6 +27,7 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Pick<TaskTemplate, 'name' | 'color'>>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onReorder: (orderedIds: string[]) => Promise<void>;
+  onSync: () => Promise<{ added: number; removed: number }>;
   onClose: () => void;
 }
 
@@ -126,11 +127,23 @@ function SortableRow({
   );
 }
 
-export function TemplateEditorModal({ templates, onAdd, onUpdate, onDelete, onReorder, onClose }: Props) {
+export function TemplateEditorModal({ templates, onAdd, onUpdate, onDelete, onReorder, onSync, onClose }: Props) {
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(COLORS[4]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [syncing, setSyncing] = useState(false);
+
+  async function handleSync() {
+    if (!confirm('全物件の工程をこのテンプレートと完全に一致させます。\n・テンプレートにない工程は各物件から削除されます\n・不足している工程は各物件の末尾に追加されます\n\n実行しますか？')) return;
+    setSyncing(true);
+    try {
+      const result = await onSync();
+      alert(`同期完了：${result.added} 件追加、${result.removed} 件削除しました。`);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -174,12 +187,23 @@ export function TemplateEditorModal({ templates, onAdd, onUpdate, onDelete, onRe
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh]">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">工程テンプレート編集</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
-          >
-            <FontAwesomeIcon icon={faXmark} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-800 hover:border-blue-400 rounded-lg px-3 py-1.5 transition disabled:opacity-50 disabled:cursor-wait"
+              title="全物件の工程をテンプレートと完全一致させる"
+            >
+              <FontAwesomeIcon icon={faArrowsRotate} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? '同期中…' : '物件と同期'}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
+            >
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">

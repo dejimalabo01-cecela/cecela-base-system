@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Property, Task } from '../types';
+import type { Property, Task, TaskTemplate } from '../types';
 import { supabase } from '../lib/supabase';
 
 function generatePropertyId(properties: Property[]): string {
@@ -221,6 +221,74 @@ export function useProperties() {
     setSelectedId(prev => prev === propertyId ? null : prev);
   }
 
+  async function syncWithTemplates(templates: TaskTemplate[]): Promise<{ added: number; removed: number }> {
+    const { data: props } = await supabase.from('properties').select('id');
+    const { data: allTasks } = await supabase.from('tasks').select('property_id, id, name, order_index');
+    if (!props) return { added: 0, removed: 0 };
+
+    const templateNames = new Set(templates.map(t => t.name));
+    const orphanNames = Array.from(
+      new Set((allTasks ?? []).filter(t => !templateNames.has(t.name)).map(t => t.name))
+    );
+
+    let removed = 0;
+    if (orphanNames.length > 0) {
+      const { data: deleted } = await supabase
+        .from('tasks')
+        .delete()
+        .in('name', orphanNames)
+        .select('id');
+      removed = deleted?.length ?? 0;
+    }
+
+    const taskNamesByProperty = new Map<string, Set<string>>();
+    const maxOrderByProperty = new Map<string, number>();
+    (allTasks ?? [])
+      .filter(t => templateNames.has(t.name))
+      .forEach(t => {
+        const names = taskNamesByProperty.get(t.property_id) ?? new Set<string>();
+        names.add(t.name);
+        taskNamesByProperty.set(t.property_id, names);
+        const cur = maxOrderByProperty.get(t.property_id) ?? -1;
+        if (t.order_index > cur) maxOrderByProperty.set(t.property_id, t.order_index);
+      });
+
+    const toInsert: {
+      id: string;
+      property_id: string;
+      name: string;
+      color: string;
+      start_date: null;
+      end_date: null;
+      order_index: number;
+    }[] = [];
+
+    for (const p of props) {
+      const existing = taskNamesByProperty.get(p.id) ?? new Set<string>();
+      let nextOrder = (maxOrderByProperty.get(p.id) ?? -1) + 1;
+      for (const tmpl of templates) {
+        if (!existing.has(tmpl.name)) {
+          toInsert.push({
+            id: crypto.randomUUID(),
+            property_id: p.id,
+            name: tmpl.name,
+            color: tmpl.color,
+            start_date: null,
+            end_date: null,
+            order_index: nextOrder++,
+          });
+        }
+      }
+    }
+
+    if (toInsert.length > 0) {
+      await supabase.from('tasks').insert(toInsert);
+    }
+
+    await load();
+    return { added: toInsert.length, removed };
+  }
+
   async function reorderTasks(propertyId: string, orderedTaskIds: string[]) {
     const target = properties.find(p => p.id === propertyId);
     if (!target) return;
@@ -251,5 +319,6 @@ export function useProperties() {
     properties, selectedProperty, selectedId, loading,
     load, setSelectedId, addProperty, copyProperty,
     updateTask, updateAssignee, updatePropertyName, deleteProperty, reorderTasks,
+    syncWithTemplates,
   };
 }

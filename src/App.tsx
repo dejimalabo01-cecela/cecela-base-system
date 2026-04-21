@@ -43,6 +43,7 @@ export default function App() {
     load: reloadProperties,
     setSelectedId, addProperty, copyProperty,
     updateTask, updateAssignee, updatePropertyName, deleteProperty, reorderTasks,
+    syncWithTemplates,
   } = useProperties();
   const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
 
@@ -203,6 +204,7 @@ export default function App() {
           onUpdate={handleUpdateTemplate}
           onDelete={handleDeleteTemplate}
           onReorder={reorderTemplates}
+          onSync={() => syncWithTemplates(templates)}
           onClose={() => setShowTemplateModal(false)}
         />
       )}
