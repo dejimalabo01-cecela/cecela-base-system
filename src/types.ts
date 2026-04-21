@@ -6,6 +6,7 @@ export interface Task {
   endDate: string | null;   // YYYY-MM-DD
   updatedAt: string | null;
   updatedBy: string | null;
+  hidden: boolean;
 }
 
 export interface Property {

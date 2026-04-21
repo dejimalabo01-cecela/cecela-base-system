@@ -95,14 +95,18 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
     }
   }
 
+  function stripHidden(props: Property[]): Property[] {
+    return props.map(p => ({ ...p, tasks: p.tasks.filter(t => !t.hidden) }));
+  }
+
   function handleExportCsv() {
     const target = selectedList.length > 0 ? selectedList : filtered;
-    exportAllToCSV(target, members);
+    exportAllToCSV(stripHidden(target), members);
   }
 
   function handleExportExcel() {
     const target = selectedList.length > 0 ? selectedList : filtered;
-    exportAllToExcel(target, members);
+    exportAllToExcel(stripHidden(target), members);
   }
 
   return (

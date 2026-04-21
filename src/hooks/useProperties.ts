@@ -49,6 +49,7 @@ export function useProperties() {
           endDate: t.end_date ?? null,
           updatedAt: t.updated_at ?? null,
           updatedBy: t.updated_by ?? null,
+          hidden: t.hidden ?? false,
         }));
 
       return {
@@ -297,6 +298,37 @@ export function useProperties() {
     return { added: toInsert.length, removed };
   }
 
+  async function setTaskHidden(propertyId: string, taskId: string, hidden: boolean) {
+    setProperties(prev =>
+      prev.map(p => p.id !== propertyId ? p : {
+        ...p,
+        tasks: p.tasks.map(t => t.id === taskId ? { ...t, hidden } : t),
+      })
+    );
+    await supabase.from('tasks')
+      .update({ hidden })
+      .eq('property_id', propertyId)
+      .eq('id', taskId);
+  }
+
+  async function showAllTasks(propertyId: string) {
+    const target = properties.find(p => p.id === propertyId);
+    if (!target) return;
+    const hiddenIds = target.tasks.filter(t => t.hidden).map(t => t.id);
+    if (hiddenIds.length === 0) return;
+
+    setProperties(prev =>
+      prev.map(p => p.id !== propertyId ? p : {
+        ...p,
+        tasks: p.tasks.map(t => ({ ...t, hidden: false })),
+      })
+    );
+    await supabase.from('tasks')
+      .update({ hidden: false })
+      .eq('property_id', propertyId)
+      .in('id', hiddenIds);
+  }
+
   async function reorderTasks(propertyId: string, orderedTaskIds: string[]) {
     const target = properties.find(p => p.id === propertyId);
     if (!target) return;
@@ -327,6 +359,7 @@ export function useProperties() {
     properties, selectedProperty, selectedId, loading,
     load, setSelectedId, addProperty, copyProperty,
     updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
+    setTaskHidden, showAllTasks,
     syncWithTemplates,
   };
 }

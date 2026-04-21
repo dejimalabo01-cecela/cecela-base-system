@@ -9,6 +9,8 @@ import {
   faXmark,
   faClock,
   faGripVertical,
+  faEye,
+  faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   DndContext,
@@ -53,6 +55,8 @@ interface Props {
   onDelete: () => void;
   onCopy: () => void;
   onReorderTasks: (orderedTaskIds: string[]) => void;
+  onSetTaskHidden: (taskId: string, hidden: boolean) => void;
+  onShowAllTasks: () => void;
 }
 
 interface TaskLabelRowProps {
@@ -63,20 +67,21 @@ interface TaskLabelRowProps {
   endVal: string;
   onChangeDate: (field: 'startDate' | 'endDate', value: string) => void;
   onBlurDate: (field: 'startDate' | 'endDate') => void;
+  onToggleHidden: () => void;
 }
 
 function SortableTaskLabelRow({
-  task, canEdit, isSaving, startVal, endVal, onChangeDate, onBlurDate,
+  task, canEdit, isSaving, startVal, endVal, onChangeDate, onBlurDate, onToggleHidden,
 }: TaskLabelRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
-    disabled: !canEdit,
+    disabled: !canEdit || task.hidden,
   });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : task.hidden ? 0.45 : 1,
   };
 
   return (
@@ -86,11 +91,11 @@ function SortableTaskLabelRow({
       className="flex items-center border-b border-gray-100 dark:border-gray-700 h-11 bg-white dark:bg-gray-800"
     >
       <div
-        className="w-44 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1.5"
+        className="w-44 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1"
         title={task.name}
         style={{ borderLeft: `3px solid ${task.color}` }}
       >
-        {canEdit && (
+        {canEdit && !task.hidden && (
           <button
             {...attributes}
             {...listeners}
@@ -99,6 +104,16 @@ function SortableTaskLabelRow({
             aria-label="ドラッグで並び替え"
           >
             <FontAwesomeIcon icon={faGripVertical} className="text-[10px]" />
+          </button>
+        )}
+        {canEdit && (
+          <button
+            onClick={onToggleHidden}
+            className={`shrink-0 ${task.hidden ? 'text-gray-400 hover:text-blue-500' : 'text-gray-300 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-300'}`}
+            title={task.hidden ? 'この工程を再表示' : 'この工程を非表示にする'}
+            aria-label={task.hidden ? 'この工程を再表示' : 'この工程を非表示にする'}
+          >
+            <FontAwesomeIcon icon={task.hidden ? faEyeSlash : faEye} className="text-[10px]" />
           </button>
         )}
         <span className="truncate flex-1">{task.name}</span>
@@ -110,7 +125,7 @@ function SortableTaskLabelRow({
         <input
           type="date"
           value={startVal}
-          disabled={!canEdit}
+          disabled={!canEdit || task.hidden}
           onChange={e => onChangeDate('startDate', e.target.value)}
           onBlur={() => onBlurDate('startDate')}
           className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
@@ -121,7 +136,7 @@ function SortableTaskLabelRow({
           type="date"
           value={endVal}
           min={startVal || undefined}
-          disabled={!canEdit}
+          disabled={!canEdit || task.hidden}
           onChange={e => onChangeDate('endDate', e.target.value)}
           onBlur={() => onBlurDate('endDate')}
           className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
@@ -136,11 +151,17 @@ type LocalDates = Record<string, { startDate: string; endDate: string }>;
 export function GanttChart({
   property, members, role,
   onUpdateTask, onUpdateAssignee, onUpdatePropertyName,
-  onDelete, onCopy, onReorderTasks,
+  onDelete, onCopy, onReorderTasks, onSetTaskHidden, onShowAllTasks,
 }: Props) {
   const today = useMemo(() => new Date(), []);
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
+
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenCount = property.tasks.filter(t => t.hidden).length;
+  const visibleTasks = showHidden ? property.tasks : property.tasks.filter(t => !t.hidden);
+
+  useEffect(() => { setShowHidden(false); }, [property.id]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -230,7 +251,7 @@ export function GanttChart({
 
   const months = useMemo(() => {
     const allDates: Date[] = [];
-    for (const t of property.tasks) {
+    for (const t of visibleTasks) {
       const s = parseDate(t.startDate);
       const e = parseDate(t.endDate);
       if (s) allDates.push(s);
@@ -251,7 +272,7 @@ export function GanttChart({
       }
     }
     return getMonthRange(from, to);
-  }, [property.tasks, today]);
+  }, [visibleTasks, today]);
 
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth();
@@ -372,8 +393,34 @@ export function GanttChart({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setShowHidden(v => !v)}
+                className={`flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5 transition border ${
+                  showHidden
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                }`}
+                title={showHidden ? '非表示項目を隠す' : '非表示項目を表示'}
+              >
+                <FontAwesomeIcon icon={showHidden ? faEye : faEyeSlash} />
+                {showHidden ? `非表示 ${hiddenCount} 件を隠す` : `非表示 ${hiddenCount} 件を表示`}
+              </button>
+            )}
+            {canEdit && hiddenCount > 0 && showHidden && (
+              <button
+                onClick={() => {
+                  if (confirm(`非表示の ${hiddenCount} 件をすべて表示に戻しますか？`)) onShowAllTasks();
+                }}
+                className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-800 border border-green-300 dark:border-green-800 hover:border-green-500 rounded-lg px-3 py-1.5 transition"
+                title="非表示の工程をすべて再表示にする"
+              >
+                <FontAwesomeIcon icon={faEye} />
+                すべて再表示
+              </button>
+            )}
             <button
-              onClick={() => exportPropertyToCSV(property, members)}
+              onClick={() => exportPropertyToCSV({ ...property, tasks: property.tasks.filter(t => !t.hidden) }, members)}
               className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
             >
               <FontAwesomeIcon icon={faDownload} />
@@ -420,8 +467,8 @@ export function GanttChart({
             <div className="h-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" />
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={property.tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                {property.tasks.map(task => (
+              <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                {visibleTasks.map(task => (
                   <SortableTaskLabelRow
                     key={task.id}
                     task={task}
@@ -431,6 +478,7 @@ export function GanttChart({
                     endVal={getLocalDate(task.id, 'endDate', task.endDate)}
                     onChangeDate={(field, value) => handleDateChange(task.id, field, value)}
                     onBlurDate={field => handleDateBlur(task.id, field)}
+                    onToggleHidden={() => onSetTaskHidden(task.id, !task.hidden)}
                   />
                 ))}
               </SortableContext>
@@ -476,11 +524,16 @@ export function GanttChart({
               )}
             </div>
 
-            {property.tasks.map(task => {
+            {visibleTasks.map(task => {
               const taskStart = parseDate(task.startDate);
               const taskEnd = parseDate(task.endDate);
+              const rowOpacity = task.hidden ? 0.45 : 1;
               return (
-                <div key={task.id} className="flex border-b border-gray-100 dark:border-gray-700 h-11 items-center">
+                <div
+                  key={task.id}
+                  className="flex border-b border-gray-100 dark:border-gray-700 h-11 items-center"
+                  style={{ opacity: rowOpacity }}
+                >
                   {months.map(({ year, month }, mi) =>
                     [0, 1, 2, 3].map(slot => {
                       const [slotStart, slotEnd] = getSlotDates(year, month, slot);
@@ -515,8 +568,8 @@ export function GanttChart({
 
       {/* Legend */}
       <div className="px-6 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3 shrink-0">
-        {property.tasks.map(t => (
-          <div key={t.id} className="flex items-center gap-1.5">
+        {visibleTasks.map(t => (
+          <div key={t.id} className="flex items-center gap-1.5" style={{ opacity: t.hidden ? 0.5 : 1 }}>
             <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: t.color }} />
             <span className="text-xs text-gray-500 dark:text-gray-400">{t.name}</span>
           </div>

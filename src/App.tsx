@@ -43,6 +43,7 @@ export default function App() {
     load: reloadProperties,
     setSelectedId, addProperty, copyProperty,
     updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
+    setTaskHidden, showAllTasks,
     syncWithTemplates,
   } = useProperties();
   const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
@@ -150,6 +151,8 @@ export default function App() {
           onDelete={() => deleteProperty(selectedProperty.id)}
           onCopy={() => setShowCopyModal(true)}
           onReorderTasks={(orderedIds) => reorderTasks(selectedProperty.id, orderedIds)}
+          onSetTaskHidden={(taskId, hidden) => setTaskHidden(selectedProperty.id, taskId, hidden)}
+          onShowAllTasks={() => showAllTasks(selectedProperty.id)}
         />
       );
     }
