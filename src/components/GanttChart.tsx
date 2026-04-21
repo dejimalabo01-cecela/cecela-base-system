@@ -8,7 +8,25 @@ import {
   faCheck,
   faXmark,
   faClock,
+  faGripVertical,
 } from '@fortawesome/free-solid-svg-icons';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Property, Task, Member } from '../types';
 import type { Role } from '../hooks/useRole';
 import { exportPropertyToCSV } from '../utils/exportUtils';
@@ -34,6 +52,83 @@ interface Props {
   onUpdatePropertyName: (name: string) => void;
   onDelete: () => void;
   onCopy: () => void;
+  onReorderTasks: (orderedTaskIds: string[]) => void;
+}
+
+interface TaskLabelRowProps {
+  task: Task;
+  canEdit: boolean;
+  isSaving: boolean;
+  startVal: string;
+  endVal: string;
+  onChangeDate: (field: 'startDate' | 'endDate', value: string) => void;
+  onBlurDate: (field: 'startDate' | 'endDate') => void;
+}
+
+function SortableTaskLabelRow({
+  task, canEdit, isSaving, startVal, endVal, onChangeDate, onBlurDate,
+}: TaskLabelRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    disabled: !canEdit,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center border-b border-gray-100 dark:border-gray-700 h-11 bg-white dark:bg-gray-800"
+    >
+      <div
+        className="w-44 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1.5"
+        title={task.name}
+        style={{ borderLeft: `3px solid ${task.color}` }}
+      >
+        {canEdit && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-grab active:cursor-grabbing shrink-0"
+            title="ドラッグで並び替え"
+            aria-label="ドラッグで並び替え"
+          >
+            <FontAwesomeIcon icon={faGripVertical} className="text-[10px]" />
+          </button>
+        )}
+        <span className="truncate flex-1">{task.name}</span>
+        {isSaving && (
+          <span className="text-[10px] text-blue-400 shrink-0">保存中…</span>
+        )}
+      </div>
+      <div className="w-32 px-2 border-r border-gray-200 dark:border-gray-700">
+        <input
+          type="date"
+          value={startVal}
+          disabled={!canEdit}
+          onChange={e => onChangeDate('startDate', e.target.value)}
+          onBlur={() => onBlurDate('startDate')}
+          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+        />
+      </div>
+      <div className="w-32 px-2 border-r border-gray-200 dark:border-gray-700">
+        <input
+          type="date"
+          value={endVal}
+          min={startVal || undefined}
+          disabled={!canEdit}
+          onChange={e => onChangeDate('endDate', e.target.value)}
+          onBlur={() => onBlurDate('endDate')}
+          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+        />
+      </div>
+    </div>
+  );
 }
 
 type LocalDates = Record<string, { startDate: string; endDate: string }>;
@@ -41,11 +136,26 @@ type LocalDates = Record<string, { startDate: string; endDate: string }>;
 export function GanttChart({
   property, members, role,
   onUpdateTask, onUpdateAssignee, onUpdatePropertyName,
-  onDelete, onCopy,
+  onDelete, onCopy, onReorderTasks,
 }: Props) {
   const today = useMemo(() => new Date(), []);
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const ids = property.tasks.map(t => t.id);
+    const oldIdx = ids.indexOf(String(active.id));
+    const newIdx = ids.indexOf(String(over.id));
+    if (oldIdx < 0 || newIdx < 0) return;
+    onReorderTasks(arrayMove(ids, oldIdx, newIdx));
+  }
 
   // Local date state
   const [localDates, setLocalDates] = useState<LocalDates>({});
@@ -309,47 +419,22 @@ export function GanttChart({
             </div>
             <div className="h-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" />
 
-            {property.tasks.map(task => {
-              const isSavingThis = saving === task.id;
-              const startVal = getLocalDate(task.id, 'startDate', task.startDate);
-              const endVal = getLocalDate(task.id, 'endDate', task.endDate);
-
-              return (
-                <div key={task.id} className="flex items-center border-b border-gray-100 dark:border-gray-700 h-11">
-                  <div
-                    className="w-44 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 truncate border-r border-gray-200 dark:border-gray-700 flex items-center gap-1"
-                    title={task.name}
-                    style={{ borderLeft: `3px solid ${task.color}` }}
-                  >
-                    <span className="truncate">{task.name}</span>
-                    {isSavingThis && (
-                      <span className="text-[10px] text-blue-400 shrink-0">保存中…</span>
-                    )}
-                  </div>
-                  <div className="w-32 px-2 border-r border-gray-200 dark:border-gray-700">
-                    <input
-                      type="date"
-                      value={startVal}
-                      disabled={!canEdit}
-                      onChange={e => handleDateChange(task.id, 'startDate', e.target.value)}
-                      onBlur={() => handleDateBlur(task.id, 'startDate')}
-                      className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
-                    />
-                  </div>
-                  <div className="w-32 px-2 border-r border-gray-200 dark:border-gray-700">
-                    <input
-                      type="date"
-                      value={endVal}
-                      min={startVal || undefined}
-                      disabled={!canEdit}
-                      onChange={e => handleDateChange(task.id, 'endDate', e.target.value)}
-                      onBlur={() => handleDateBlur(task.id, 'endDate')}
-                      className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
-                    />
-                  </div>
-                </div>
-              );
-            })}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={property.tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                {property.tasks.map(task => (
+                  <SortableTaskLabelRow
+                    key={task.id}
+                    task={task}
+                    canEdit={canEdit}
+                    isSaving={saving === task.id}
+                    startVal={getLocalDate(task.id, 'startDate', task.startDate)}
+                    endVal={getLocalDate(task.id, 'endDate', task.endDate)}
+                    onChangeDate={(field, value) => handleDateChange(task.id, field, value)}
+                    onBlurDate={field => handleDateBlur(task.id, field)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
 
           {/* Right: timeline grid */}

@@ -23,6 +23,30 @@ export function useTemplates() {
     const id = `tt-${Date.now()}`;
     const orderIndex = templates.length;
     await supabase.from('task_templates').insert({ id, name, color, order_index: orderIndex });
+
+    // Append to every existing property's task list so the new step shows up immediately.
+    const { data: props } = await supabase.from('properties').select('id');
+    if (props && props.length > 0) {
+      const { data: existingTasks } = await supabase.from('tasks').select('property_id, order_index');
+      const maxByProperty = new Map<string, number>();
+      (existingTasks ?? []).forEach(t => {
+        const cur = maxByProperty.get(t.property_id) ?? -1;
+        if (t.order_index > cur) maxByProperty.set(t.property_id, t.order_index);
+      });
+
+      const newTasks = props.map(p => ({
+        id: crypto.randomUUID(),
+        property_id: p.id,
+        name,
+        color,
+        start_date: null,
+        end_date: null,
+        order_index: (maxByProperty.get(p.id) ?? -1) + 1,
+      }));
+
+      await supabase.from('tasks').insert(newTasks);
+    }
+
     await load();
   }
 
@@ -36,14 +60,12 @@ export function useTemplates() {
     setTemplates(prev => prev.filter(t => t.id !== id));
   }
 
-  async function moveTemplate(id: string, direction: 'up' | 'down') {
-    const idx = templates.findIndex(t => t.id === id);
-    if (direction === 'up' && idx === 0) return;
-    if (direction === 'down' && idx === templates.length - 1) return;
-
-    const newList = [...templates];
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    [newList[idx], newList[swapIdx]] = [newList[swapIdx], newList[idx]];
+  async function reorderTemplates(orderedIds: string[]) {
+    const byId = new Map(templates.map(t => [t.id, t]));
+    const newList = orderedIds
+      .map(id => byId.get(id))
+      .filter((t): t is TaskTemplate => !!t);
+    if (newList.length !== templates.length) return;
 
     setTemplates(newList);
     await Promise.all(
@@ -53,5 +75,5 @@ export function useTemplates() {
     );
   }
 
-  return { templates, load, addTemplate, updateTemplate, deleteTemplate, moveTemplate };
+  return { templates, load, addTemplate, updateTemplate, deleteTemplate, reorderTemplates };
 }

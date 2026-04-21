@@ -221,11 +221,35 @@ export function useProperties() {
     setSelectedId(prev => prev === propertyId ? null : prev);
   }
 
+  async function reorderTasks(propertyId: string, orderedTaskIds: string[]) {
+    const target = properties.find(p => p.id === propertyId);
+    if (!target) return;
+
+    const byId = new Map(target.tasks.map(t => [t.id, t]));
+    const newTasks = orderedTaskIds
+      .map(id => byId.get(id))
+      .filter((t): t is Task => !!t);
+    if (newTasks.length !== target.tasks.length) return;
+
+    setProperties(prev =>
+      prev.map(p => p.id === propertyId ? { ...p, tasks: newTasks } : p)
+    );
+
+    await Promise.all(
+      newTasks.map((t, i) =>
+        supabase.from('tasks')
+          .update({ order_index: i })
+          .eq('property_id', propertyId)
+          .eq('id', t.id)
+      )
+    );
+  }
+
   const selectedProperty = properties.find(p => p.id === selectedId) ?? null;
 
   return {
     properties, selectedProperty, selectedId, loading,
-    setSelectedId, addProperty, copyProperty,
-    updateTask, updateAssignee, updatePropertyName, deleteProperty,
+    load, setSelectedId, addProperty, copyProperty,
+    updateTask, updateAssignee, updatePropertyName, deleteProperty, reorderTasks,
   };
 }

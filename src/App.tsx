@@ -40,10 +40,16 @@ export default function App() {
   const { role } = useRole(user?.id);
   const {
     properties, selectedProperty, loading,
+    load: reloadProperties,
     setSelectedId, addProperty, copyProperty,
-    updateTask, updateAssignee, updatePropertyName, deleteProperty,
+    updateTask, updateAssignee, updatePropertyName, deleteProperty, reorderTasks,
   } = useProperties();
-  const { templates, addTemplate, updateTemplate, deleteTemplate, moveTemplate } = useTemplates();
+  const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
+
+  async function handleAddTemplate(name: string, color: string) {
+    await addTemplate(name, color);
+    await reloadProperties();
+  }
   const { members, addMember, deleteMember } = useMembers();
 
   const [activeModule, setActiveModule] = useState<ModuleId>('construction');
@@ -130,6 +136,7 @@ export default function App() {
           onUpdatePropertyName={(name) => updatePropertyName(selectedProperty.id, name, userEmail)}
           onDelete={() => deleteProperty(selectedProperty.id)}
           onCopy={() => setShowCopyModal(true)}
+          onReorderTasks={(orderedIds) => reorderTasks(selectedProperty.id, orderedIds)}
         />
       );
     }
@@ -182,10 +189,10 @@ export default function App() {
       {showTemplateModal && (
         <TemplateEditorModal
           templates={templates}
-          onAdd={addTemplate}
+          onAdd={handleAddTemplate}
           onUpdate={updateTemplate}
           onDelete={deleteTemplate}
-          onMove={moveTemplate}
+          onReorder={reorderTemplates}
           onClose={() => setShowTemplateModal(false)}
         />
       )}
