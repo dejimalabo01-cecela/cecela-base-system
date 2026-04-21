@@ -20,7 +20,7 @@ import {
   faEnvelope,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import type { Property, ModuleId } from '../types';
+import type { ModuleId } from '../types';
 import type { Role } from '../hooks/useRole';
 
 type SubMenuItem = { id: string; label: string; icon: IconDefinition };
@@ -63,10 +63,7 @@ const MODULES: {
 interface Props {
   activeModule: ModuleId;
   onChangeModule: (id: ModuleId) => void;
-  properties: Property[];
-  selectedId: string | null;
   showList: boolean;
-  onSelect: (id: string) => void;
   onShowList: () => void;
   onNew: () => void;
   userEmail: string;
@@ -82,7 +79,7 @@ interface Props {
 
 export function Sidebar({
   activeModule, onChangeModule,
-  properties, selectedId, showList, onSelect, onShowList, onNew,
+  showList, onShowList, onNew,
   onSignOut, onChangePassword,
   onEditTemplates, onManageMembers, onManageUsers,
   isDark, onToggleTheme, role,
@@ -139,30 +136,12 @@ export function Sidebar({
         <div className="border-t border-gray-700 px-2 py-2 space-y-0.5">
           <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
           {isAdmin && (
-            <>
-              <button
-                onClick={onEditTemplates}
-                className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
-              >
-                <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
-                テンプレート
-              </button>
-              <button
-                onClick={onManageUsers}
-                className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
-              >
-                <FontAwesomeIcon icon={faUsers} className="w-3 opacity-60" />
-                ユーザー管理
-              </button>
-            </>
-          )}
-          {(isAdmin || canEdit) && (
             <button
-              onClick={onManageMembers}
+              onClick={onManageUsers}
               className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
             >
-              <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
-              担当者管理
+              <FontAwesomeIcon icon={faUsers} className="w-3 opacity-60" />
+              ユーザー管理
             </button>
           )}
           <button
@@ -213,25 +192,26 @@ export function Sidebar({
               )}
             </div>
 
-            {/* 物件リスト */}
-            <nav className="flex-1 overflow-y-auto py-1">
-              {properties.length === 0 ? (
-                <p className="text-gray-600 text-xs px-3 py-3">物件が登録されていません</p>
-              ) : (
-                properties.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => onSelect(p.id)}
-                    className={`w-full text-left px-3 py-2 hover:bg-gray-800 transition ${
-                      !showList && selectedId === p.id
-                        ? 'bg-gray-800 border-l-2 border-blue-500'
-                        : 'border-l-2 border-transparent'
-                    }`}
-                  >
-                    <div className="text-[10px] text-gray-500 font-mono">{p.id}</div>
-                    <div className="text-xs font-medium truncate mt-0.5">{p.name}</div>
-                  </button>
-                ))
+            {/* 工程管理の設定メニュー */}
+            <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
+              <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
+              {isAdmin && (
+                <button
+                  onClick={onEditTemplates}
+                  className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
+                  テンプレート
+                </button>
+              )}
+              {(isAdmin || canEdit) && (
+                <button
+                  onClick={onManageMembers}
+                  className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
+                  担当者管理
+                </button>
               )}
             </nav>
           </>

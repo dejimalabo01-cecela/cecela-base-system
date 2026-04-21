@@ -39,7 +39,7 @@ export default function App() {
   const { isDark, toggleTheme } = useTheme();
   const { role } = useRole(user?.id);
   const {
-    properties, selectedProperty, selectedId, loading,
+    properties, selectedProperty, loading,
     setSelectedId, addProperty, copyProperty,
     updateTask, updateAssignee, updatePropertyName, deleteProperty,
   } = useProperties();
@@ -155,10 +155,7 @@ export default function App() {
       <Sidebar
         activeModule={activeModule}
         onChangeModule={handleChangeModule}
-        properties={properties}
-        selectedId={selectedId}
         showList={showList}
-        onSelect={handleSelectProperty}
         onShowList={() => setShowList(true)}
         onNew={() => setShowNewModal(true)}
         userEmail={userEmail}
