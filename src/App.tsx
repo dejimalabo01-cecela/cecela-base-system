@@ -50,6 +50,16 @@ export default function App() {
     await addTemplate(name, color);
     await reloadProperties();
   }
+
+  async function handleUpdateTemplate(id: string, updates: Partial<{ name: string; color: string }>) {
+    await updateTemplate(id, updates);
+    await reloadProperties();
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    await deleteTemplate(id);
+    await reloadProperties();
+  }
   const { members, addMember, deleteMember } = useMembers();
 
   const [activeModule, setActiveModule] = useState<ModuleId>('construction');
@@ -190,8 +200,8 @@ export default function App() {
         <TemplateEditorModal
           templates={templates}
           onAdd={handleAddTemplate}
-          onUpdate={updateTemplate}
-          onDelete={deleteTemplate}
+          onUpdate={handleUpdateTemplate}
+          onDelete={handleDeleteTemplate}
           onReorder={reorderTemplates}
           onClose={() => setShowTemplateModal(false)}
         />

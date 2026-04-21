@@ -51,13 +51,31 @@ export function useTemplates() {
   }
 
   async function updateTemplate(id: string, updates: Partial<Pick<TaskTemplate, 'name' | 'color'>>) {
+    const existing = templates.find(t => t.id === id);
+    if (!existing) return;
+
     await supabase.from('task_templates').update({ name: updates.name, color: updates.color }).eq('id', id);
+
+    // Keep property tasks in sync with the template (matched by previous name).
+    const taskUpdates: { name?: string; color?: string } = {};
+    if (updates.name !== undefined) taskUpdates.name = updates.name;
+    if (updates.color !== undefined) taskUpdates.color = updates.color;
+    if (Object.keys(taskUpdates).length > 0) {
+      await supabase.from('tasks').update(taskUpdates).eq('name', existing.name);
+    }
+
     setTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   }
 
   async function deleteTemplate(id: string) {
+    const existing = templates.find(t => t.id === id);
     await supabase.from('task_templates').delete().eq('id', id);
     setTemplates(prev => prev.filter(t => t.id !== id));
+
+    // Remove the matching step from every property so template and properties stay aligned.
+    if (existing) {
+      await supabase.from('tasks').delete().eq('name', existing.name);
+    }
   }
 
   async function reorderTemplates(orderedIds: string[]) {

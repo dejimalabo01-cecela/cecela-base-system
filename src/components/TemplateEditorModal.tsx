@@ -114,7 +114,7 @@ function SortableRow({
       {/* Delete */}
       <button
         onClick={() => {
-          if (confirm(`「${t.name}」を削除しますか？\n（既存物件の工程には影響しません）`))
+          if (confirm(`「${t.name}」を削除しますか？\n既存物件からも同名の工程が削除されます。`))
             onDelete(t.id);
         }}
         className="text-red-400 hover:text-red-600 px-1 shrink-0"
