@@ -134,10 +134,10 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0 space-y-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="px-4 md:px-6 py-3 md:py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">物件一覧</h1>
+            <h1 className="text-lg md:text-xl font-bold text-gray-800 dark:text-gray-100">物件一覧</h1>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               全 {properties.length} 件
               {search && ` / 該当 ${filtered.length} 件`}
@@ -148,41 +148,41 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
             <button
               onClick={handleExportCsv}
               disabled={filtered.length === 0}
-              className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-4 py-2 transition disabled:opacity-40"
+              className="flex items-center gap-1.5 text-xs md:text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-3 md:px-4 py-2 transition disabled:opacity-40"
               title={selected.size > 0 ? '選択した物件をCSV出力' : '全件をCSV出力'}
             >
               <FontAwesomeIcon icon={faDownload} />
-              CSV{selected.size > 0 ? `（${selected.size}件）` : '一括出力'}
+              <span>CSV{selected.size > 0 ? `（${selected.size}）` : ''}</span>
             </button>
             <button
               onClick={handleExportExcel}
               disabled={filtered.length === 0}
-              className="flex items-center gap-1.5 text-sm text-white bg-green-600 hover:bg-green-500 rounded-lg px-4 py-2 transition disabled:opacity-40"
+              className="flex items-center gap-1.5 text-xs md:text-sm text-white bg-green-600 hover:bg-green-500 rounded-lg px-3 md:px-4 py-2 transition disabled:opacity-40"
               title={selected.size > 0 ? '選択した物件をExcel出力' : '全件をExcel出力'}
             >
               <FontAwesomeIcon icon={faFileExcel} />
-              Excel{selected.size > 0 ? `（${selected.size}件）` : '一括出力'}
+              <span>Excel{selected.size > 0 ? `（${selected.size}）` : ''}</span>
             </button>
             {canEdit && (
               <button
                 onClick={handleBulkCopy}
                 disabled={selected.size === 0 || copying}
-                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 text-xs md:text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-3 md:px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 title="選択した物件を複製"
               >
                 <FontAwesomeIcon icon={faCopy} />
-                {copying ? '複製中…' : `複製${selected.size > 0 ? `（${selected.size}件）` : ''}`}
+                <span>{copying ? '複製中…' : `複製${selected.size > 0 ? `（${selected.size}）` : ''}`}</span>
               </button>
             )}
             {isAdmin && (
               <button
                 onClick={handleBulkDelete}
                 disabled={selected.size === 0 || deleting}
-                className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 border border-red-300 dark:border-red-700 hover:border-red-500 rounded-lg px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 text-xs md:text-sm text-red-600 hover:text-red-700 border border-red-300 dark:border-red-700 hover:border-red-500 rounded-lg px-3 md:px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 title="選択した物件を削除"
               >
                 <FontAwesomeIcon icon={faTrash} />
-                {deleting ? '削除中…' : `削除${selected.size > 0 ? `（${selected.size}件）` : ''}`}
+                <span>{deleting ? '削除中…' : `削除${selected.size > 0 ? `（${selected.size}）` : ''}`}</span>
               </button>
             )}
           </div>
@@ -210,8 +210,8 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
+      {/* List body */}
+      <div className="flex-1 overflow-auto p-3 md:p-6">
         {properties.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-600">
             <FontAwesomeIcon icon={faBuilding} className="text-6xl mb-4 opacity-30" />
@@ -224,7 +224,78 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
             <p className="text-sm mt-1">検索条件を変更してください</p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <>
+            {/* Mobile: card layout */}
+            <div className="md:hidden space-y-2">
+              <div className="flex items-center gap-2 px-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={allVisibleChecked}
+                  ref={el => { if (el) el.indeterminate = someVisibleChecked; }}
+                  onChange={toggleAllVisible}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  aria-label="全件選択"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">全件選択</span>
+              </div>
+              {filtered.map(p => {
+                const progress = getProgress(p);
+                const isChecked = selected.has(p.id);
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => onSelect(p.id)}
+                    className={`rounded-xl border p-3 shadow-sm cursor-pointer transition ${
+                      isChecked
+                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div onClick={e => e.stopPropagation()} className="pt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleOne(p.id)}
+                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          aria-label={`${p.name} を選択`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                            {p.id}
+                          </span>
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto">
+                            {new Date(p.createdAt).toLocaleDateString('ja-JP')}
+                          </span>
+                        </div>
+                        <div className="font-medium text-sm text-gray-800 dark:text-gray-100 truncate">
+                          {p.name}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                          <span>{getAssigneeName(p)}</span>
+                          <span className="text-gray-300 dark:text-gray-600">·</span>
+                          <span className="font-mono text-[10px] truncate">{getDateRange(p)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                            <div
+                              className="bg-blue-500 h-1.5 rounded-full transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 w-8 text-right">{progress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table layout */}
+            <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
@@ -300,7 +371,8 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -91,7 +91,7 @@ function SortableTaskLabelRow({
       className="flex items-center border-b border-gray-100 dark:border-gray-700 h-11 bg-white dark:bg-gray-800"
     >
       <div
-        className="w-44 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1"
+        className="w-32 md:w-44 px-2 md:px-3 py-2 text-[11px] md:text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1"
         title={task.name}
         style={{ borderLeft: `3px solid ${task.color}` }}
       >
@@ -121,17 +121,17 @@ function SortableTaskLabelRow({
           <span className="text-[10px] text-blue-400 shrink-0">保存中…</span>
         )}
       </div>
-      <div className="w-32 px-2 border-r border-gray-200 dark:border-gray-700">
+      <div className="w-24 md:w-32 px-1.5 md:px-2 border-r border-gray-200 dark:border-gray-700">
         <input
           type="date"
           value={startVal}
           disabled={!canEdit || task.hidden}
           onChange={e => onChangeDate('startDate', e.target.value)}
           onBlur={() => onBlurDate('startDate')}
-          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+          className="w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
         />
       </div>
-      <div className="w-32 px-2 border-r border-gray-200 dark:border-gray-700">
+      <div className="w-24 md:w-32 px-1.5 md:px-2 border-r border-gray-200 dark:border-gray-700">
         <input
           type="date"
           value={endVal}
@@ -139,7 +139,7 @@ function SortableTaskLabelRow({
           disabled={!canEdit || task.hidden}
           onChange={e => onChangeDate('endDate', e.target.value)}
           onBlur={() => onBlurDate('endDate')}
-          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+          className="w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
         />
       </div>
     </div>
@@ -309,11 +309,11 @@ export function GanttChart({
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Property header */}
-      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
-        <div className="flex items-start justify-between gap-4">
+      <div className="px-4 md:px-6 py-3 md:py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-1">
-              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded font-bold shrink-0">
+            <div className="flex items-center gap-2 md:gap-3 mb-1">
+              <span className="text-[10px] md:text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 md:px-2 py-0.5 md:py-1 rounded font-bold shrink-0">
                 {property.id}
               </span>
 
@@ -330,7 +330,7 @@ export function GanttChart({
                       if (e.key === 'Enter') commitNameEdit();
                       if (e.key === 'Escape') cancelNameEdit();
                     }}
-                    className="flex-1 text-xl font-bold bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-blue-400 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-0"
+                    className="flex-1 text-base md:text-xl font-bold bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-blue-400 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-0"
                   />
                   <button
                     onMouseDown={e => { e.preventDefault(); commitNameEdit(); }}
@@ -349,7 +349,7 @@ export function GanttChart({
                 </div>
               ) : (
                 <div className="flex items-center gap-2 min-w-0">
-                  <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 truncate">
+                  <h1 className="text-base md:text-xl font-bold text-gray-800 dark:text-gray-100 truncate">
                     {property.name}
                   </h1>
                   {canEdit && (
@@ -365,23 +365,23 @@ export function GanttChart({
               )}
             </div>
 
-            <div className="flex items-center gap-4 flex-wrap">
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+            <div className="flex items-center gap-2 md:gap-4 flex-wrap">
+              <span className="text-[10px] md:text-xs text-gray-400 dark:text-gray-500">
                 登録日: {new Date(property.createdAt).toLocaleDateString('ja-JP')}
               </span>
               {lastEdit && (
-                <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                <span className="hidden sm:flex text-xs text-gray-400 dark:text-gray-500 items-center gap-1">
                   <FontAwesomeIcon icon={faClock} className="text-[10px]" />
                   最終更新: {lastEdit}
                 </span>
               )}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500 dark:text-gray-400">担当者:</span>
+                <span className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400">担当者:</span>
                 <select
                   value={property.assigneeId ?? ''}
                   onChange={e => onUpdateAssignee(e.target.value || null)}
                   disabled={!canEdit}
-                  className="text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+                  className="text-[11px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default max-w-[140px]"
                 >
                   <option value="">未設定</option>
                   {members.map(m => (
@@ -392,11 +392,11 @@ export function GanttChart({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 md:gap-2 shrink-0 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
             {hiddenCount > 0 && (
               <button
                 onClick={() => setShowHidden(v => !v)}
-                className={`flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5 transition border ${
+                className={`flex items-center gap-1.5 text-xs rounded-lg px-2.5 md:px-3 py-1.5 transition border shrink-0 ${
                   showHidden
                     ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border-blue-300 dark:border-blue-700'
                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-gray-300 dark:border-gray-600 hover:border-gray-400'
@@ -404,7 +404,10 @@ export function GanttChart({
                 title={showHidden ? '非表示項目を隠す' : '非表示項目を表示'}
               >
                 <FontAwesomeIcon icon={showHidden ? faEye : faEyeSlash} />
-                {showHidden ? `非表示 ${hiddenCount} 件を隠す` : `非表示 ${hiddenCount} 件を表示`}
+                <span className="hidden sm:inline">
+                  {showHidden ? `非表示 ${hiddenCount} 件を隠す` : `非表示 ${hiddenCount} 件を表示`}
+                </span>
+                <span className="sm:hidden">{hiddenCount}</span>
               </button>
             )}
             {canEdit && hiddenCount > 0 && showHidden && (
@@ -412,36 +415,39 @@ export function GanttChart({
                 onClick={() => {
                   if (confirm(`非表示の ${hiddenCount} 件をすべて表示に戻しますか？`)) onShowAllTasks();
                 }}
-                className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-800 border border-green-300 dark:border-green-800 hover:border-green-500 rounded-lg px-3 py-1.5 transition"
+                className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-800 border border-green-300 dark:border-green-800 hover:border-green-500 rounded-lg px-2.5 md:px-3 py-1.5 transition shrink-0"
                 title="非表示の工程をすべて再表示にする"
               >
                 <FontAwesomeIcon icon={faEye} />
-                すべて再表示
+                <span className="hidden sm:inline">すべて再表示</span>
               </button>
             )}
             <button
               onClick={() => exportPropertyToCSV({ ...property, tasks: property.tasks.filter(t => !t.hidden) }, members)}
-              className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
+              className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-2.5 md:px-3 py-1.5 transition shrink-0"
+              title="CSV出力"
             >
               <FontAwesomeIcon icon={faDownload} />
-              CSV
+              <span>CSV</span>
             </button>
             {canEdit && (
               <button
                 onClick={onCopy}
-                className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-3 py-1.5 transition"
+                className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-2.5 md:px-3 py-1.5 transition shrink-0"
+                title="物件をコピー"
               >
                 <FontAwesomeIcon icon={faCopy} />
-                コピー
+                <span>コピー</span>
               </button>
             )}
             {isAdmin && (
               <button
                 onClick={handleDelete}
-                className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg px-3 py-1.5 transition"
+                className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg px-2.5 md:px-3 py-1.5 transition shrink-0"
+                title="物件を削除"
               >
                 <FontAwesomeIcon icon={faTrash} />
-                削除
+                <span>削除</span>
               </button>
             )}
           </div>
@@ -456,13 +462,13 @@ export function GanttChart({
             {/* Header rows (also sticky to top) */}
             <div className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-900">
               <div className="flex">
-                <div className="w-44 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
+                <div className="w-32 md:w-44 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 md:px-3 py-2 text-[11px] md:text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
                   工程
                 </div>
-                <div className="w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
+                <div className="w-24 md:w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-1.5 md:px-2 py-2 text-[11px] md:text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
                   開始日
                 </div>
-                <div className="w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
+                <div className="w-24 md:w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-1.5 md:px-2 py-2 text-[11px] md:text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
                   終了日
                 </div>
               </div>
@@ -573,7 +579,7 @@ export function GanttChart({
       </div>
 
       {/* Legend */}
-      <div className="px-6 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3 shrink-0">
+      <div className="px-4 md:px-6 py-2 md:py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2 md:gap-3 shrink-0 overflow-x-auto">
         {visibleTasks.map(t => (
           <div key={t.id} className="flex items-center gap-1.5" style={{ opacity: t.hidden ? 0.5 : 1 }}>
             <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: t.color }} />

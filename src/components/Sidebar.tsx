@@ -18,6 +18,7 @@ import {
   faFileLines,
   faChartBar,
   faEnvelope,
+  faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { ModuleId, Property } from '../types';
@@ -90,6 +91,7 @@ interface Props {
   isDark: boolean;
   onToggleTheme: () => void;
   role: Role;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
@@ -98,6 +100,7 @@ export function Sidebar({
   onSignOut, onChangePassword,
   onEditTemplates, onManageMembers, onManageUsers,
   isDark, onToggleTheme, role,
+  onCloseMobile,
 }: Props) {
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
@@ -108,7 +111,18 @@ export function Sidebar({
     .slice(0, RECENT_LIMIT);
 
   return (
-    <aside className="h-full bg-gray-900 text-white flex" style={{ width: '268px' }}>
+    <aside className="relative h-full bg-gray-900 text-white flex" style={{ width: '268px' }}>
+
+      {/* モバイル用：閉じるボタン */}
+      {onCloseMobile && (
+        <button
+          onClick={onCloseMobile}
+          className="md:hidden absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded transition"
+          aria-label="メニューを閉じる"
+        >
+          <FontAwesomeIcon icon={faXmark} />
+        </button>
+      )}
 
       {/* ═══════════════════════════════
           左パネル：モジュールリスト

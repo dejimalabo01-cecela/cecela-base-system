@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBuilding, faBullhorn, faHandshake } from '@fortawesome/free-solid-svg-icons';
+import { faBuilding, faBullhorn, faHandshake, faBars } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from './hooks/useAuth';
 import { useProperties } from './hooks/useProperties';
 import { useTemplates } from './hooks/useTemplates';
@@ -72,6 +72,7 @@ export default function App() {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showList, setShowList] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (authLoading) {
     return (
@@ -88,6 +89,7 @@ export default function App() {
   function handleSelectProperty(id: string) {
     setSelectedId(id);
     setShowList(false);
+    setSidebarOpen(false);
   }
 
   function handleChangeModule(id: ModuleId) {
@@ -97,9 +99,24 @@ export default function App() {
       setSelectedId(null);
       setShowList(false);
     }
+    setSidebarOpen(false);
+  }
+
+  function handleShowList() {
+    setShowList(true);
+    setSidebarOpen(false);
   }
 
   const userEmail = user.email ?? '';
+
+  // モバイルのトップバーに表示する現在の画面タイトル
+  function currentScreenTitle(): string {
+    if (activeModule === 'marketing') return 'マーケ';
+    if (activeModule === 'sales') return '営業';
+    if (showList) return '物件一覧';
+    if (selectedProperty) return selectedProperty.name;
+    return '工程管理';
+  }
 
   // メインコンテンツの描画
   function renderMain() {
@@ -174,29 +191,66 @@ export default function App() {
     );
   }
 
+  // モバイル時にサイドバーを自動で閉じるようなラッパー
+  const closeSidebar = () => setSidebarOpen(false);
+  const withClose = (fn: () => void) => () => { fn(); closeSidebar(); };
+
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden font-sans">
-      <Sidebar
-        activeModule={activeModule}
-        onChangeModule={handleChangeModule}
-        properties={properties}
-        selectedId={selectedId}
-        showList={showList}
-        onShowList={() => setShowList(true)}
-        onSelect={handleSelectProperty}
-        onNew={() => setShowNewModal(true)}
-        userEmail={userEmail}
-        onSignOut={signOut}
-        onChangePassword={() => setShowPasswordModal(true)}
-        onEditTemplates={() => setShowTemplateModal(true)}
-        onManageMembers={() => setShowMemberModal(true)}
-        onManageUsers={() => setShowUserModal(true)}
-        isDark={isDark}
-        onToggleTheme={toggleTheme}
-        role={role}
-      />
+      {/* Mobile: overlay behind sidebar */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={closeSidebar}
+          aria-hidden="true"
+        />
+      )}
 
-      <main className="flex-1 overflow-hidden flex flex-col">
+      {/* Sidebar - fixed-overlay on mobile, flex-child on desktop */}
+      <div
+        className={`
+          fixed md:relative inset-y-0 left-0 z-50 md:z-auto shrink-0
+          transform transition-transform duration-200 ease-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+        `}
+      >
+        <Sidebar
+          activeModule={activeModule}
+          onChangeModule={handleChangeModule}
+          properties={properties}
+          selectedId={selectedId}
+          showList={showList}
+          onShowList={handleShowList}
+          onSelect={handleSelectProperty}
+          onNew={withClose(() => setShowNewModal(true))}
+          userEmail={userEmail}
+          onSignOut={signOut}
+          onChangePassword={withClose(() => setShowPasswordModal(true))}
+          onEditTemplates={withClose(() => setShowTemplateModal(true))}
+          onManageMembers={withClose(() => setShowMemberModal(true))}
+          onManageUsers={withClose(() => setShowUserModal(true))}
+          isDark={isDark}
+          onToggleTheme={toggleTheme}
+          role={role}
+          onCloseMobile={closeSidebar}
+        />
+      </div>
+
+      <main className="flex-1 overflow-hidden flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center gap-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-2 shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md w-10 h-10 flex items-center justify-center shrink-0"
+            aria-label="メニューを開く"
+          >
+            <FontAwesomeIcon icon={faBars} />
+          </button>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate flex-1">
+            {currentScreenTitle()}
+          </span>
+        </div>
+
         {renderMain()}
       </main>
 
