@@ -41,7 +41,7 @@ export default function App() {
   const {
     properties, selectedProperty, selectedId, loading,
     load: reloadProperties,
-    setSelectedId, addProperty, copyProperty,
+    setSelectedId, addProperty, copyProperty, copyProperties,
     updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
     setTaskHidden, showAllTasks,
     syncWithTemplates,
@@ -136,6 +136,7 @@ export default function App() {
           role={role}
           onSelect={handleSelectProperty}
           onDeleteMany={deleteProperties}
+          onCopyMany={copyProperties}
         />
       );
     }

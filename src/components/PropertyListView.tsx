@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faDownload, faFileExcel, faBuilding, faSearch, faXmark, faTrash,
+  faDownload, faFileExcel, faBuilding, faSearch, faXmark, faTrash, faCopy,
 } from '@fortawesome/free-solid-svg-icons';
 import type { Property, Member } from '../types';
 import type { Role } from '../hooks/useRole';
@@ -13,13 +13,16 @@ interface Props {
   role: Role;
   onSelect: (id: string) => void;
   onDeleteMany: (ids: string[]) => Promise<void>;
+  onCopyMany: (ids: string[], copyDates: boolean) => Promise<number>;
 }
 
-export function PropertyListView({ properties, members, role, onSelect, onDeleteMany }: Props) {
+export function PropertyListView({ properties, members, role, onSelect, onDeleteMany, onCopyMany }: Props) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [copying, setCopying] = useState(false);
 
+  const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
 
   function getAssigneeName(property: Property) {
@@ -95,6 +98,25 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
     }
   }
 
+  async function handleBulkCopy() {
+    if (selectedList.length === 0) return;
+    const names = selectedList.slice(0, 3).map(p => `・${p.name}`).join('\n');
+    const suffix = selectedList.length > 3 ? `\n他 ${selectedList.length - 3} 件` : '';
+    // OK = 日付ごと複製、キャンセル = 中止。日付なしは個別コピー画面でどうぞ。
+    const ok = confirm(
+      `選択した ${selectedList.length} 件を複製します。\n${names}${suffix}\n\n` +
+      `物件名は「○○_コピー」、工程・担当者・日付・非表示状態すべて引き継ぎます。\n\nよろしいですか？`
+    );
+    if (!ok) return;
+    setCopying(true);
+    try {
+      const created = await onCopyMany(selectedList.map(p => p.id), true);
+      if (created > 0) clearSelection();
+    } finally {
+      setCopying(false);
+    }
+  }
+
   function stripHidden(props: Property[]): Property[] {
     return props.map(p => ({ ...p, tasks: p.tasks.filter(t => !t.hidden) }));
   }
@@ -141,6 +163,17 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
               <FontAwesomeIcon icon={faFileExcel} />
               Excel{selected.size > 0 ? `（${selected.size}件）` : '一括出力'}
             </button>
+            {canEdit && (
+              <button
+                onClick={handleBulkCopy}
+                disabled={selected.size === 0 || copying}
+                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                title="選択した物件を複製"
+              >
+                <FontAwesomeIcon icon={faCopy} />
+                {copying ? '複製中…' : `複製${selected.size > 0 ? `（${selected.size}件）` : ''}`}
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={handleBulkDelete}

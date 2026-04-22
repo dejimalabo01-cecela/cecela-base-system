@@ -116,6 +116,7 @@ export function useProperties() {
           start_date: copyDates ? t.startDate : null,
           end_date: copyDates ? t.endDate : null,
           order_index: i,
+          hidden: t.hidden,
         }))
       );
       if (taskError) console.error('tasks insert error:', taskError);
@@ -123,6 +124,52 @@ export function useProperties() {
 
     await load();
     setSelectedId(id);
+  }
+
+  async function copyProperties(sourceIds: string[], copyDates: boolean): Promise<number> {
+    const sources = sourceIds
+      .map(id => properties.find(p => p.id === id))
+      .filter((p): p is Property => !!p);
+    if (sources.length === 0) return 0;
+
+    const startMax = properties.reduce((m, p) => {
+      const n = parseInt(p.id.replace('P-', ''), 10);
+      return isNaN(n) ? m : Math.max(m, n);
+    }, 0);
+
+    const newIds: string[] = sources.map((_, i) =>
+      `P-${String(startMax + 1 + i).padStart(3, '0')}`
+    );
+
+    const propertyInserts = sources.map((source, i) => ({
+      id: newIds[i],
+      name: `${source.name}_コピー`,
+      assignee_id: source.assigneeId,
+    }));
+
+    const { error: propError } = await supabase.from('properties').insert(propertyInserts);
+    if (propError) { console.error('properties insert error:', propError); return 0; }
+
+    const taskInserts = sources.flatMap((source, i) =>
+      source.tasks.map((t, idx) => ({
+        id: uuid(),
+        property_id: newIds[i],
+        name: t.name,
+        color: t.color,
+        start_date: copyDates ? t.startDate : null,
+        end_date: copyDates ? t.endDate : null,
+        order_index: idx,
+        hidden: t.hidden,
+      }))
+    );
+
+    if (taskInserts.length > 0) {
+      const { error: taskError } = await supabase.from('tasks').insert(taskInserts);
+      if (taskError) console.error('tasks insert error:', taskError);
+    }
+
+    await load();
+    return sources.length;
   }
 
   async function updateTask(
@@ -357,7 +404,7 @@ export function useProperties() {
 
   return {
     properties, selectedProperty, selectedId, loading,
-    load, setSelectedId, addProperty, copyProperty,
+    load, setSelectedId, addProperty, copyProperty, copyProperties,
     updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
     setTaskHidden, showAllTasks,
     syncWithTemplates,
