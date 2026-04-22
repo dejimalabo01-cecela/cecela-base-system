@@ -1,5 +1,8 @@
 import * as XLSX from 'xlsx-js-style';
 import type { Property, Member } from '../types';
+import { getSlotDates, isTaskInSlot } from './dateUtils';
+
+const SLOT_LABELS = ['1週', '2週', '3週', '4週'];
 
 function getAssigneeName(property: Property, members: Member[]): string {
   return members.find(m => m.id === property.assigneeId)?.name ?? '未設定';
@@ -40,13 +43,16 @@ function buildMonthList(properties: Property[]): Date[] {
   return months;
 }
 
-function isTaskInMonth(startDate: string | null, endDate: string | null, month: Date): boolean {
-  if (!startDate || !endDate) return false;
-  const ms = new Date(month.getFullYear(), month.getMonth(), 1).getTime();
-  const me = new Date(month.getFullYear(), month.getMonth() + 1, 0).getTime();
-  const ts = new Date(startDate).getTime();
-  const te = new Date(endDate).getTime();
-  return ts <= me && te >= ms;
+// 1ヶ月を 4 スロットに分けて、各スロットでタスクが入っているかを返す
+function isTaskInSlotForMonth(
+  taskStart: string | null,
+  taskEnd: string | null,
+  month: Date,
+  slot: number,
+): boolean {
+  if (!taskStart || !taskEnd) return false;
+  const [slotStart, slotEnd] = getSlotDates(month.getFullYear(), month.getMonth(), slot);
+  return isTaskInSlot(new Date(taskStart), new Date(taskEnd), slotStart, slotEnd);
 }
 
 // ===== Excel 一括出力（ガントチャート付き）=====
@@ -58,6 +64,12 @@ export function exportAllToExcel(properties: Property[], members: Member[]) {
     font: { bold: true, sz: 9, color: { rgb: '374151' } },
     fill: { patternType: 'solid', fgColor: { rgb: 'F3F4F6' } },
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: { bottom: { style: 'thin', color: { rgb: 'D1D5DB' } } },
+  };
+  const SUB_HEADER_S = {
+    font: { sz: 8, color: { rgb: '6B7280' } },
+    fill: { patternType: 'solid', fgColor: { rgb: 'F9FAFB' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
     border: { bottom: { style: 'thin', color: { rgb: 'D1D5DB' } } },
   };
   const INFO_LABEL_S = { font: { bold: true, sz: 9 } };
@@ -75,47 +87,73 @@ export function exportAllToExcel(properties: Property[], members: Member[]) {
       [{ v: '物件名', s: INFO_LABEL_S }, { v: property.name, s: INFO_VAL_S }],
       [{ v: '担当者', s: INFO_LABEL_S }, { v: assignee,      s: INFO_VAL_S }],
       [],
-      // ヘッダー行
+      // ヘッダー行 1: 月ラベル（各月は 4 列マージ）
       [
         { v: '工程名', s: HEADER_S },
         { v: '開始日', s: HEADER_S },
         { v: '終了日', s: HEADER_S },
-        ...months.map(m => ({
-          v: `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`,
-          s: HEADER_S,
-        })),
+        ...months.flatMap(m => [
+          {
+            v: `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`,
+            s: HEADER_S,
+          },
+          { v: '', s: HEADER_S },
+          { v: '', s: HEADER_S },
+          { v: '', s: HEADER_S },
+        ]),
+      ],
+      // ヘッダー行 2: 週ラベル
+      [
+        { v: '', s: HEADER_S },
+        { v: '', s: HEADER_S },
+        { v: '', s: HEADER_S },
+        ...months.flatMap(() => SLOT_LABELS.map(label => ({ v: label, s: SUB_HEADER_S }))),
       ],
       // タスク行
       ...property.tasks.map(task => [
         { v: task.name,           s: TASK_NAME_S },
         { v: task.startDate ?? '', s: DATE_S },
         { v: task.endDate   ?? '', s: DATE_S },
-        ...months.map(m => {
-          const active = isTaskInMonth(task.startDate, task.endDate, m);
-          return {
-            v: '',
-            s: active
-              ? { fill: { patternType: 'solid', fgColor: { rgb: hexToRgb(task.color) } } }
-              : {},
-          };
-        }),
+        ...months.flatMap(m =>
+          SLOT_LABELS.map((_, slot) => {
+            const active = isTaskInSlotForMonth(task.startDate, task.endDate, m, slot);
+            return {
+              v: '',
+              s: active
+                ? { fill: { patternType: 'solid', fgColor: { rgb: hexToRgb(task.color) } } }
+                : {},
+            };
+          })
+        ),
       ]),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // セルマージ：左 3 列は 2 行ぶち抜き、各月ヘッダーは 4 列ぶち抜き
+    ws['!merges'] = [
+      { s: { r: 4, c: 0 }, e: { r: 5, c: 0 } },
+      { s: { r: 4, c: 1 }, e: { r: 5, c: 1 } },
+      { s: { r: 4, c: 2 }, e: { r: 5, c: 2 } },
+      ...months.map((_, mi) => {
+        const startCol = 3 + mi * 4;
+        return { s: { r: 4, c: startCol }, e: { r: 4, c: startCol + 3 } };
+      }),
+    ];
 
     // 列幅
     ws['!cols'] = [
       { wch: 22 }, // 工程名
       { wch: 11 }, // 開始日
       { wch: 11 }, // 終了日
-      ...months.map(() => ({ wch: 5 })),
+      ...months.flatMap(() => Array.from({ length: 4 }, () => ({ wch: 3 }))),
     ];
 
-    // 行高さ（ヘッダー行=row5=index4）
+    // 行高さ
+    const totalRows = 6 + property.tasks.length;
     ws['!rows'] = [];
-    for (let i = 0; i < 5 + property.tasks.length; i++) {
-      (ws['!rows'] as unknown[])[i] = { hpt: i === 4 ? 28 : 18 };
+    for (let i = 0; i < totalRows; i++) {
+      (ws['!rows'] as unknown[])[i] = { hpt: i === 4 ? 20 : 18 };
     }
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -124,13 +162,16 @@ export function exportAllToExcel(properties: Property[], members: Member[]) {
   XLSX.writeFile(wb, 'cecela_物件一覧.xlsx');
 }
 
-// ===== CSV 一括出力（月別ガントチャート付き）=====
+// ===== CSV 一括出力（週別ガントチャート付き）=====
 export function exportAllToCSV(properties: Property[], members: Member[]) {
   const months = buildMonthList(properties);
-  const monthLabels = months.map(m => `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`);
+  const slotLabels = months.flatMap(m => {
+    const ym = `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`;
+    return SLOT_LABELS.map(s => `${ym} ${s}`);
+  });
 
   const rows: string[][] = [
-    ['物件ID', '物件名', '担当者', '工程名', '開始日', '終了日', ...monthLabels],
+    ['物件ID', '物件名', '担当者', '工程名', '開始日', '終了日', ...slotLabels],
   ];
 
   for (const property of properties) {
@@ -143,29 +184,29 @@ export function exportAllToCSV(properties: Property[], members: Member[]) {
         task.name,
         task.startDate ?? '',
         task.endDate   ?? '',
-        ...months.map(m => isTaskInMonth(task.startDate, task.endDate, m) ? '●' : ''),
+        ...months.flatMap(m =>
+          SLOT_LABELS.map((_, slot) =>
+            isTaskInSlotForMonth(task.startDate, task.endDate, m, slot) ? '●' : ''
+          )
+        ),
       ]);
     }
   }
 
-  const csv = '\uFEFF' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'cecela_物件一覧.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCSV(rows, 'cecela_物件一覧.csv');
 }
 
 // ===== 単一物件CSV出力（GanttChartから呼ぶ）=====
 export function exportPropertyToCSV(property: Property, members: Member[]) {
   const assignee = getAssigneeName(property, members);
   const months = buildMonthList([property]);
-  const monthLabels = months.map(m => `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`);
+  const slotLabels = months.flatMap(m => {
+    const ym = `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`;
+    return SLOT_LABELS.map(s => `${ym} ${s}`);
+  });
 
   const rows: string[][] = [
-    ['物件ID', '物件名', '担当者', '工程名', '開始日', '終了日', ...monthLabels],
+    ['物件ID', '物件名', '担当者', '工程名', '開始日', '終了日', ...slotLabels],
     ...property.tasks.map(task => [
       property.id,
       property.name,
@@ -173,16 +214,24 @@ export function exportPropertyToCSV(property: Property, members: Member[]) {
       task.name,
       task.startDate ?? '',
       task.endDate   ?? '',
-      ...months.map(m => isTaskInMonth(task.startDate, task.endDate, m) ? '●' : ''),
+      ...months.flatMap(m =>
+        SLOT_LABELS.map((_, slot) =>
+          isTaskInSlotForMonth(task.startDate, task.endDate, m, slot) ? '●' : ''
+        )
+      ),
     ]),
   ];
 
+  downloadCSV(rows, `${property.id}_${property.name}.csv`);
+}
+
+function downloadCSV(rows: string[][], filename: string) {
   const csv = '\uFEFF' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${property.id}_${property.name}.csv`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }

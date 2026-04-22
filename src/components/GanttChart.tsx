@@ -451,20 +451,23 @@ export function GanttChart({
       {/* Gantt table */}
       <div className="flex-1 overflow-auto">
         <div className="inline-flex min-w-full">
-          {/* Left: task info (sticky) */}
+          {/* Left: task info (sticky horizontally) */}
           <div className="sticky left-0 z-20 bg-white dark:bg-gray-800 shrink-0 shadow-[2px_0_6px_rgba(0,0,0,0.08)]">
-            <div className="flex">
-              <div className="w-44 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
-                工程
+            {/* Header rows (also sticky to top) */}
+            <div className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-900">
+              <div className="flex">
+                <div className="w-44 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
+                  工程
+                </div>
+                <div className="w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
+                  開始日
+                </div>
+                <div className="w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
+                  終了日
+                </div>
               </div>
-              <div className="w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
-                開始日
-              </div>
-              <div className="w-32 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 flex items-end">
-                終了日
-              </div>
+              <div className="h-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" />
             </div>
-            <div className="h-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" />
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
@@ -487,41 +490,44 @@ export function GanttChart({
 
           {/* Right: timeline grid */}
           <div className="shrink-0">
-            <div className="flex bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              {months.map(({ year, month }, mi) => (
-                <div
-                  key={`${year}-${month}`}
-                  style={{ width: CELL_W * 4 }}
-                  className={`text-center text-xs font-semibold py-1 border-r border-gray-200 dark:border-gray-700 ${
-                    year === todayYear && month === todayMonth
-                      ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  {year !== months[mi - 1]?.year && (
-                    <span className="text-gray-400 dark:text-gray-600 mr-0.5">{year}/</span>
-                  )}
-                  {MONTH_NAMES[month]}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 h-7">
-              {months.map(({ year, month }) =>
-                WEEK_LABELS.map((label, wi) => (
+            {/* Header rows (sticky to top) */}
+            <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
+              <div className="flex bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                {months.map(({ year, month }, mi) => (
                   <div
-                    key={`${year}-${month}-${wi}`}
-                    style={{ width: CELL_W }}
-                    className={`text-center text-[10px] text-gray-400 dark:text-gray-600 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center ${
-                      isTodayCell(months.findIndex(m => m.year === year && m.month === month), wi)
-                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-500 font-semibold'
-                        : ''
+                    key={`${year}-${month}`}
+                    style={{ width: CELL_W * 4 }}
+                    className={`text-center text-xs font-semibold py-1 border-r border-gray-200 dark:border-gray-700 ${
+                      year === todayYear && month === todayMonth
+                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
+                        : 'text-gray-600 dark:text-gray-400'
                     }`}
                   >
-                    {label}
+                    {year !== months[mi - 1]?.year && (
+                      <span className="text-gray-400 dark:text-gray-600 mr-0.5">{year}/</span>
+                    )}
+                    {MONTH_NAMES[month]}
                   </div>
-                ))
-              )}
+                ))}
+              </div>
+
+              <div className="flex bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 h-7">
+                {months.map(({ year, month }) =>
+                  WEEK_LABELS.map((label, wi) => (
+                    <div
+                      key={`${year}-${month}-${wi}`}
+                      style={{ width: CELL_W }}
+                      className={`text-center text-[10px] text-gray-400 dark:text-gray-600 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center ${
+                        isTodayCell(months.findIndex(m => m.year === year && m.month === month), wi)
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-500 font-semibold'
+                          : ''
+                      }`}
+                    >
+                      {label}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             {visibleTasks.map(task => {
