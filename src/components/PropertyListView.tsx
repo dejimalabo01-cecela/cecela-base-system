@@ -37,10 +37,27 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
     return `${min} 〜 ${max}`;
   }
 
+  // 日付ベースの進捗率。非表示工程は除外、日付未設定の工程は 0% として含める
   function getProgress(property: Property) {
-    if (property.tasks.length === 0) return 0;
-    const done = property.tasks.filter(t => t.startDate && t.endDate).length;
-    return Math.round((done / property.tasks.length) * 100);
+    const tasks = property.tasks.filter(t => !t.hidden);
+    if (tasks.length === 0) return 0;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+
+    const totalFraction = tasks.reduce((sum, t) => {
+      if (!t.startDate || !t.endDate) return sum;
+      const startMs = new Date(t.startDate).setHours(0, 0, 0, 0);
+      const endMs = new Date(t.endDate).setHours(23, 59, 59, 999);
+      if (todayMs < startMs) return sum;          // 未着手
+      if (todayMs > endMs) return sum + 1;        // 完了
+      const range = endMs - startMs;
+      if (range <= 0) return sum + 1;             // 同日ちょうど
+      return sum + (todayMs - startMs) / range;   // 進行中
+    }, 0);
+
+    return Math.round((totalFraction / tasks.length) * 100);
   }
 
   const filtered = useMemo(() => {
