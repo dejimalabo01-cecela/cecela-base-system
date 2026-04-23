@@ -74,6 +74,7 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
   }, [fy]);
 
   // FY に関係する物件だけ：工程期間が FY に重なる or 販売開始/契約日が FY 範囲内
+  // ただし契約日が表示FYより前の年度なら除外（前期以前に契約済のものは次年度以降には載らない）
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return properties.filter(p => {
@@ -81,6 +82,8 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
       const { start, end } = taskRange(p);
       const sale = parseDate(getSaleStartDate(p));
       const contract = parseDate(p.contractDate ?? null);
+      // 契約日が表示FYの開始より前なら、その物件は表示しない
+      if (contract && contract.getTime() < fyRange.start.getTime()) return false;
       const inFY = (d: Date | null) =>
         !!d && d.getTime() >= fyRange.start.getTime() && d.getTime() <= fyRange.end.getTime();
       const rangeOverlap = start && end && start <= fyRange.end && end >= fyRange.start;
