@@ -181,8 +181,16 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
               <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">ステータス</div>
               <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end text-right">販売価格</div>
             </div>
-            {filtered.map(p => (
-              <div key={p.id} className="flex items-center border-b border-gray-100 dark:border-gray-700 h-11 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer group" onClick={() => canEdit && onEdit(p.id)}>
+            {filtered.map(p => {
+              const signed = p.status === '契約済';
+              return (
+              <div
+                key={p.id}
+                className={`flex items-center border-b border-gray-100 dark:border-gray-700 h-11 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer group ${
+                  signed ? 'bg-gray-200/60 dark:bg-gray-700/40' : ''
+                }`}
+                onClick={() => canEdit && onEdit(p.id)}
+              >
                 <div className="w-24 px-2 text-[10px] font-mono text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700">
                   {p.id}
                 </div>
@@ -206,7 +214,8 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
                   {p.salePrice ? formatYen(p.salePrice) : '―'}
                 </div>
               </div>
-            ))}
+              );
+            })}
             {/* totals row */}
             <div className="flex items-center border-b-2 border-gray-300 dark:border-gray-600 h-10 bg-gray-50 dark:bg-gray-900/70">
               <div className="w-24 px-2 text-[10px] font-mono text-gray-500 border-r border-gray-200 dark:border-gray-700">合計</div>
@@ -241,8 +250,14 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
             {filtered.map(p => {
               const range = taskRange(p);
               const sale = parseDate(getSaleStartDate(p));
+              const signed = p.status === '契約済';
               return (
-                <div key={p.id} className="flex border-b border-gray-100 dark:border-gray-700 h-11 items-center">
+                <div
+                  key={p.id}
+                  className={`flex border-b border-gray-100 dark:border-gray-700 h-11 items-center ${
+                    signed ? 'bg-gray-200/60 dark:bg-gray-700/40' : ''
+                  }`}
+                >
                   {months.map(m => {
                     const filled = cellForTaskRange(range, m);
                     const saleCell = cellIsSaleMonth(sale, m);
