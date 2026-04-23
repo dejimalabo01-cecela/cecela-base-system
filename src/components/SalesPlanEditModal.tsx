@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faLink } from '@fortawesome/free-solid-svg-icons';
 import type { Property, PropertyStatus, PropertyType } from '../types';
 import { PROPERTY_STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from '../types';
+import { findSaleTask, getSaleStartDate, getSaleStartSource } from '../utils/salesHelpers';
 
 interface Props {
   property: Property;
@@ -21,10 +22,14 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
   const [cost, setCost] = useState<string>(property.cost != null ? String(property.cost) : '');
   const [loan, setLoan] = useState<string>(property.loan != null ? String(property.loan) : '');
   const [salePrice, setSalePrice] = useState<string>(property.salePrice != null ? String(property.salePrice) : '');
-  const [saleStartDate, setSaleStartDate] = useState<string>(property.saleStartDate ?? '');
   const [contractDate, setContractDate] = useState<string>(property.contractDate ?? '');
   const [pricePending, setPricePending] = useState<boolean>(property.pricePending ?? false);
   const [saving, setSaving] = useState(false);
+
+  // 販売開始日は工程管理の「販売」タスクから自動取得（フォールバックで property.saleStartDate）
+  const saleTask = findSaleTask(property);
+  const saleStartDate = getSaleStartDate(property);
+  const saleSource = getSaleStartSource(property);
 
   const toNum = (v: string): number | null => {
     const n = parseInt(v.replace(/[,\s]/g, ''), 10);
@@ -41,7 +46,6 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
         cost: cost.trim() === '' ? null : toNum(cost),
         loan: loan.trim() === '' ? null : toNum(loan),
         salePrice: salePrice.trim() === '' ? null : toNum(salePrice),
-        saleStartDate: saleStartDate || null,
         contractDate: contractDate || null,
         pricePending,
       });
@@ -155,26 +159,35 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
             </div>
           </div>
 
-          {/* 販売開始日 / 契約日 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">販売開始日</label>
-              <input
-                type="date"
-                value={saleStartDate}
-                onChange={e => setSaleStartDate(e.target.value)}
-                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-              />
+          {/* 販売開始日（自動取得・読取専用） */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1.5">
+              販売開始日
+              <FontAwesomeIcon icon={faLink} className="text-[10px] text-blue-500" />
+              <span className="text-[10px] font-normal text-blue-500">工程管理から自動取得</span>
+            </label>
+            <div className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300 flex items-center justify-between">
+              <span className="font-mono">{saleStartDate || '未設定'}</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                {saleSource === 'task' && saleTask && `← 工程「${saleTask.name}」`}
+                {saleSource === 'fallback' && '← 手動入力'}
+                {saleSource === 'none' && '工程管理に「販売」タスクが見つかりません'}
+              </span>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">契約日</label>
-              <input
-                type="date"
-                value={contractDate}
-                onChange={e => setContractDate(e.target.value)}
-                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-              />
-            </div>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+              変更したい場合は、工程管理でこの物件の「販売」工程の開始日を編集してください。
+            </p>
+          </div>
+
+          {/* 契約日 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">契約日</label>
+            <input
+              type="date"
+              value={contractDate}
+              onChange={e => setContractDate(e.target.value)}
+              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+            />
           </div>
         </form>
 

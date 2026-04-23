@@ -4,6 +4,7 @@ import { faPen, faSearch, faXmark } from '@fortawesome/free-solid-svg-icons';
 import type { Property, PropertyStatus } from '../types';
 import type { Role } from '../hooks/useRole';
 import { parseDate } from '../utils/dateUtils';
+import { getSaleStartDate } from '../utils/salesHelpers';
 
 const MONTH_CELL_W = 52;
 const FY_MONTH_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2]; // Apr..Mar
@@ -78,7 +79,7 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
     return properties.filter(p => {
       if (q && !(p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))) return false;
       const { start, end } = taskRange(p);
-      const sale = parseDate(p.saleStartDate ?? null);
+      const sale = parseDate(getSaleStartDate(p));
       const contract = parseDate(p.contractDate ?? null);
       const inFY = (d: Date | null) =>
         !!d && d.getTime() >= fyRange.start.getTime() && d.getTime() <= fyRange.end.getTime();
@@ -106,7 +107,7 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
   const monthlyTotals = useMemo(() => {
     return months.map(m => {
       return filtered.reduce((sum, p) => {
-        const sale = parseDate(p.saleStartDate ?? null);
+        const sale = parseDate(getSaleStartDate(p));
         if (!sale || !p.salePrice) return sum;
         if (sale.getFullYear() === m.year && sale.getMonth() === m.month) return sum + p.salePrice;
         return sum;
@@ -239,7 +240,7 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
             </div>
             {filtered.map(p => {
               const range = taskRange(p);
-              const sale = parseDate(p.saleStartDate ?? null);
+              const sale = parseDate(getSaleStartDate(p));
               return (
                 <div key={p.id} className="flex border-b border-gray-100 dark:border-gray-700 h-11 items-center">
                   {months.map(m => {
@@ -261,7 +262,7 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
                                 ? 'bg-yellow-200 dark:bg-yellow-500/70 text-gray-800 dark:text-gray-900'
                                 : 'bg-orange-300 dark:bg-orange-400 text-gray-900'
                             }`}
-                            title={`販売開始: ${p.saleStartDate ?? ''} / 価格: ${p.salePrice ?? '未設定'}`}
+                            title={`販売開始: ${getSaleStartDate(p) ?? ''} / 価格: ${p.salePrice ?? '未設定'}`}
                           >
                             {p.salePrice ? formatYen(p.salePrice) : '未定'}
                           </div>
