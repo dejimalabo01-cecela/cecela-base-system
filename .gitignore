@@ -3,3 +3,5 @@ dist
 .env.local
 .env
 *.local
+.transcript_meeting_*.txt
+phase_2_bukken_itiran/

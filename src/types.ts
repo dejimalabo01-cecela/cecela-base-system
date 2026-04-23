@@ -9,6 +9,33 @@ export interface Task {
   hidden: boolean;
 }
 
+// 販売計画モジュールで使う追加情報（既存機能は参照しない）
+export type PropertyStatus =
+  | '契約予定'
+  | '契約済'
+  | '期中完成販売'
+  | '完成済'
+  | 'R8年度完成'
+  | '竣工予定日なし';
+
+export type PropertyType =
+  | '建売'
+  | '条件付請負'
+  | '条件付土地'
+  | 'モデル'
+  | '土地'
+  | 'マンション'
+  | '木賃収益'
+  | '収益';
+
+export const PROPERTY_STATUS_OPTIONS: PropertyStatus[] = [
+  '契約予定', '契約済', '期中完成販売', '完成済', 'R8年度完成', '竣工予定日なし',
+];
+
+export const PROPERTY_TYPE_OPTIONS: PropertyType[] = [
+  '建売', '条件付請負', '条件付土地', 'モデル', '土地', 'マンション', '木賃収益', '収益',
+];
+
 export interface Property {
   id: string;        // e.g. "P-001"
   name: string;
@@ -17,6 +44,15 @@ export interface Property {
   updatedAt: string | null;
   updatedBy: string | null;
   tasks: Task[];
+  // 販売計画モジュール用（既存機能は未参照）
+  propertyType?: PropertyType | null;
+  status?: PropertyStatus | null;
+  cost?: number | null;
+  loan?: number | null;
+  salePrice?: number | null;
+  saleStartDate?: string | null;  // YYYY-MM-DD
+  contractDate?: string | null;   // YYYY-MM-DD
+  pricePending?: boolean;
 }
 
 export interface TaskTemplate {
@@ -38,7 +74,7 @@ export interface UserProfile {
 }
 
 // サイドバーのモジュール定義
-export type ModuleId = 'construction' | 'marketing' | 'sales';
+export type ModuleId = 'construction' | 'sales-plan' | 'marketing' | 'sales';
 
 export interface AppModule {
   id: ModuleId;

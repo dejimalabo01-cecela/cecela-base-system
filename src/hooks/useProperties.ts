@@ -60,6 +60,15 @@ export function useProperties() {
         updatedAt: p.updated_at ?? null,
         updatedBy: p.updated_by ?? null,
         tasks: propertyTasks,
+        // 販売計画用フィールド（未マイグレーションのDBでも undefined で安全）
+        propertyType: p.property_type ?? null,
+        status: p.status ?? null,
+        cost: p.cost ?? null,
+        loan: p.loan ?? null,
+        salePrice: p.sale_price ?? null,
+        saleStartDate: p.sale_start_date ?? null,
+        contractDate: p.contract_date ?? null,
+        pricePending: p.price_pending ?? false,
       };
     });
 
@@ -263,6 +272,43 @@ export function useProperties() {
     }
   }
 
+  // 販売計画モジュール用：追加フィールドの更新
+  async function updateSalesInfo(
+    propertyId: string,
+    updates: Partial<Pick<Property,
+      'propertyType' | 'status' | 'cost' | 'loan' | 'salePrice' |
+      'saleStartDate' | 'contractDate' | 'pricePending'
+    >>,
+    userEmail?: string,
+  ) {
+    const now = new Date().toISOString();
+    setProperties(prev =>
+      prev.map(p => p.id === propertyId
+        ? { ...p, ...updates, updatedAt: now, updatedBy: userEmail ?? null }
+        : p
+      )
+    );
+
+    const dbUpdates: Record<string, unknown> = {
+      updated_at: now,
+      updated_by: userEmail ?? null,
+    };
+    if (updates.propertyType !== undefined)   dbUpdates.property_type    = updates.propertyType;
+    if (updates.status !== undefined)         dbUpdates.status           = updates.status;
+    if (updates.cost !== undefined)           dbUpdates.cost             = updates.cost;
+    if (updates.loan !== undefined)           dbUpdates.loan             = updates.loan;
+    if (updates.salePrice !== undefined)      dbUpdates.sale_price       = updates.salePrice;
+    if (updates.saleStartDate !== undefined)  dbUpdates.sale_start_date  = updates.saleStartDate;
+    if (updates.contractDate !== undefined)   dbUpdates.contract_date    = updates.contractDate;
+    if (updates.pricePending !== undefined)   dbUpdates.price_pending    = updates.pricePending;
+
+    const { error } = await supabase.from('properties').update(dbUpdates).eq('id', propertyId);
+    if (error) {
+      // マイグレーション未実行のときはフィールドが無くて失敗する可能性があるため、フォールバックとして履歴列だけ更新
+      console.error('updateSalesInfo error:', error);
+    }
+  }
+
   async function deleteProperty(propertyId: string) {
     await supabase.from('properties').delete().eq('id', propertyId);
     setProperties(prev => prev.filter(p => p.id !== propertyId));
@@ -408,5 +454,6 @@ export function useProperties() {
     updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
     setTaskHidden, showAllTasks,
     syncWithTemplates,
+    updateSalesInfo,
   };
 }

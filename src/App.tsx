@@ -17,6 +17,8 @@ import { CopyPropertyModal } from './components/CopyPropertyModal';
 import { MemberManagerModal } from './components/MemberManagerModal';
 import { PropertyListView } from './components/PropertyListView';
 import { UserManagementModal } from './components/UserManagementModal';
+import { SalesPlanView } from './components/SalesPlanView';
+import { SalesPlanEditModal } from './components/SalesPlanEditModal';
 import type { ModuleId } from './types';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
@@ -45,6 +47,7 @@ export default function App() {
     updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
     setTaskHidden, showAllTasks,
     syncWithTemplates,
+    updateSalesInfo,
   } = useProperties();
   const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
 
@@ -73,6 +76,7 @@ export default function App() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showList, setShowList] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [salesPlanEditId, setSalesPlanEditId] = useState<string | null>(null);
 
   if (authLoading) {
     return (
@@ -111,6 +115,7 @@ export default function App() {
 
   // モバイルのトップバーに表示する現在の画面タイトル
   function currentScreenTitle(): string {
+    if (activeModule === 'sales-plan') return '販売計画';
     if (activeModule === 'marketing') return 'マーケ';
     if (activeModule === 'sales') return '営業';
     if (showList) return '物件一覧';
@@ -120,6 +125,24 @@ export default function App() {
 
   // メインコンテンツの描画
   function renderMain() {
+    // 販売計画モジュール
+    if (activeModule === 'sales-plan') {
+      if (loading) {
+        return (
+          <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+            データを読み込み中...
+          </div>
+        );
+      }
+      return (
+        <SalesPlanView
+          properties={properties}
+          role={role}
+          onEdit={setSalesPlanEditId}
+        />
+      );
+    }
+
     // 準備中モジュール
     if (activeModule !== 'construction') {
       const info = COMING_SOON[activeModule];
@@ -292,6 +315,17 @@ export default function App() {
           onClose={() => setShowUserModal(false)}
         />
       )}
+      {salesPlanEditId && (() => {
+        const target = properties.find(p => p.id === salesPlanEditId);
+        if (!target) return null;
+        return (
+          <SalesPlanEditModal
+            property={target}
+            onSave={(updates) => updateSalesInfo(target.id, updates, userEmail)}
+            onClose={() => setSalesPlanEditId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
