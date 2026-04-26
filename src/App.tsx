@@ -44,7 +44,8 @@ export default function App() {
     properties, selectedProperty, selectedId, loading,
     load: reloadProperties,
     setSelectedId, addProperty, copyProperty, copyProperties,
-    updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
+    updateTask, updateAssignee, updatePropertyName, updatePropertyId,
+    deleteProperty, deleteProperties, reorderTasks,
     setTaskHidden, showAllTasks,
     syncWithTemplates,
     updateSalesInfo,
@@ -189,6 +190,7 @@ export default function App() {
           onUpdateTask={(taskId, updates) => updateTask(selectedProperty.id, taskId, updates, userEmail)}
           onUpdateAssignee={(assigneeId) => updateAssignee(selectedProperty.id, assigneeId, userEmail)}
           onUpdatePropertyName={(name) => updatePropertyName(selectedProperty.id, name, userEmail)}
+          onUpdatePropertyId={(newId) => updatePropertyId(selectedProperty.id, newId)}
           onDelete={() => deleteProperty(selectedProperty.id)}
           onCopy={() => setShowCopyModal(true)}
           onReorderTasks={(orderedIds) => reorderTasks(selectedProperty.id, orderedIds)}

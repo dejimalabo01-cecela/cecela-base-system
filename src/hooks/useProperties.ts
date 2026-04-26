@@ -2,12 +2,23 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Property, Task, TaskTemplate } from '../types';
 import { supabase } from '../lib/supabase';
 
+// 物件IDフォーマット：'001' 〜 '999...' の連番。
+// `P-001` 形式の旧データも、`003.1` のような枝番付きIDも、先頭の整数部分を見て最大値を算出する。
 function generatePropertyId(properties: Property[]): string {
   const max = properties.reduce((m, p) => {
-    const n = parseInt(p.id.replace('P-', ''), 10);
+    const stripped = p.id.replace(/^P-/, '');
+    const match = stripped.match(/^(\d+)/);
+    if (!match) return m;
+    const n = parseInt(match[1], 10);
     return isNaN(n) ? m : Math.max(m, n);
   }, 0);
-  return `P-${String(max + 1).padStart(3, '0')}`;
+  return String(max + 1).padStart(3, '0');
+}
+
+// 編集後の物件IDが許可されたフォーマットかチェック。
+// 英数字 + '.', '-', '_' のみ、空文字不可。
+export function isValidPropertyId(id: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(id);
 }
 
 function uuid(): string {
@@ -248,6 +259,38 @@ export function useProperties() {
     }
   }
 
+  /**
+   * 物件IDの変更。重複チェックとフォーマット検証を行う。
+   * Supabase 側で ON UPDATE CASCADE が効いていれば tasks.property_id も自動追随する
+   * （schema_update_v5.sql 実行後）。
+   *
+   * 戻り値: { ok: true } 成功 / { ok: false, reason } 失敗（reasonでUI側でメッセージ出し分け）
+   */
+  async function updatePropertyId(
+    oldId: string,
+    newId: string,
+  ): Promise<{ ok: true } | { ok: false; reason: 'invalid' | 'duplicate' | 'notfound' | 'db' }> {
+    if (oldId === newId) return { ok: true };
+    if (!isValidPropertyId(newId)) return { ok: false, reason: 'invalid' };
+    if (properties.some(p => p.id === newId)) return { ok: false, reason: 'duplicate' };
+    if (!properties.some(p => p.id === oldId)) return { ok: false, reason: 'notfound' };
+
+    const { error } = await supabase.from('properties').update({ id: newId }).eq('id', oldId);
+    if (error) {
+      console.error('updatePropertyId error:', error);
+      return { ok: false, reason: 'db' };
+    }
+
+    setProperties(prev =>
+      prev.map(p => p.id === oldId
+        ? { ...p, id: newId, tasks: p.tasks }   // tasks rows are auto-cascaded server-side
+        : p
+      )
+    );
+    setSelectedId(prev => prev === oldId ? newId : prev);
+    return { ok: true };
+  }
+
   async function updatePropertyName(
     propertyId: string,
     name: string,
@@ -451,7 +494,8 @@ export function useProperties() {
   return {
     properties, selectedProperty, selectedId, loading,
     load, setSelectedId, addProperty, copyProperty, copyProperties,
-    updateTask, updateAssignee, updatePropertyName, deleteProperty, deleteProperties, reorderTasks,
+    updateTask, updateAssignee, updatePropertyName, updatePropertyId,
+    deleteProperty, deleteProperties, reorderTasks,
     setTaskHidden, showAllTasks,
     syncWithTemplates,
     updateSalesInfo,

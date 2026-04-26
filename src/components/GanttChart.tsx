@@ -45,6 +45,8 @@ const MONTH_NAMES = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8�
 const WEEK_LABELS = ['1週', '2週', '3週', '4週'];
 const CELL_W = 36;
 
+type UpdateIdResult = { ok: true } | { ok: false; reason: 'invalid' | 'duplicate' | 'notfound' | 'db' };
+
 interface Props {
   property: Property;
   members: Member[];
@@ -52,6 +54,7 @@ interface Props {
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   onUpdateAssignee: (assigneeId: string | null) => void;
   onUpdatePropertyName: (name: string) => void;
+  onUpdatePropertyId: (newId: string) => Promise<UpdateIdResult>;
   onDelete: () => void;
   onCopy: () => void;
   onReorderTasks: (orderedTaskIds: string[]) => void;
@@ -150,12 +153,46 @@ type LocalDates = Record<string, { startDate: string; endDate: string }>;
 
 export function GanttChart({
   property, members, role,
-  onUpdateTask, onUpdateAssignee, onUpdatePropertyName,
+  onUpdateTask, onUpdateAssignee, onUpdatePropertyName, onUpdatePropertyId,
   onDelete, onCopy, onReorderTasks, onSetTaskHidden, onShowAllTasks,
 }: Props) {
   const today = useMemo(() => new Date(), []);
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
+
+  // 物件ID編集（adminのみ）
+  const [editingId, setEditingId] = useState(false);
+  const [idInput, setIdInput] = useState(property.id);
+  const idInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setIdInput(property.id); setEditingId(false); }, [property.id]);
+  useEffect(() => { if (editingId) idInputRef.current?.focus(); }, [editingId]);
+
+  async function commitIdEdit() {
+    const trimmed = idInput.trim();
+    if (!trimmed || trimmed === property.id) {
+      setIdInput(property.id);
+      setEditingId(false);
+      return;
+    }
+    const result = await onUpdatePropertyId(trimmed);
+    if (!result.ok) {
+      const messages: Record<typeof result.reason, string> = {
+        invalid:   '使用できない文字が含まれています。英数字 / . / - / _ のみ使えます。',
+        duplicate: `物件ID「${trimmed}」は既に他の物件で使われています。`,
+        notfound:  '対象の物件が見つかりません。',
+        db:        '保存に失敗しました。マイグレーション (schema_update_v5.sql) が実行済みかご確認ください。',
+      };
+      alert(messages[result.reason]);
+      setIdInput(property.id);
+      setEditingId(false);
+      return;
+    }
+    setEditingId(false);
+  }
+  function cancelIdEdit() {
+    setIdInput(property.id);
+    setEditingId(false);
+  }
 
   const [showHidden, setShowHidden] = useState(false);
   const hiddenCount = property.tasks.filter(t => t.hidden).length;
@@ -313,9 +350,36 @@ export function GanttChart({
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 md:gap-3 mb-1">
-              <span className="text-[10px] md:text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 md:px-2 py-0.5 md:py-1 rounded font-bold shrink-0">
-                {property.id}
-              </span>
+              {/* Inline property ID editing (admin only) */}
+              {editingId ? (
+                <input
+                  ref={idInputRef}
+                  type="text"
+                  value={idInput}
+                  onChange={e => setIdInput(e.target.value)}
+                  onBlur={commitIdEdit}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitIdEdit();
+                    if (e.key === 'Escape') cancelIdEdit();
+                  }}
+                  className="text-[10px] md:text-xs font-mono bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-blue-400 rounded px-1.5 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold shrink-0 w-24"
+                  placeholder="例: 003.1"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => isAdmin && setEditingId(true)}
+                  disabled={!isAdmin}
+                  className={`text-[10px] md:text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 md:px-2 py-0.5 md:py-1 rounded font-bold shrink-0 ${
+                    isAdmin
+                      ? 'hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-800 dark:hover:text-gray-100 cursor-pointer transition'
+                      : 'cursor-default'
+                  }`}
+                  title={isAdmin ? 'クリックで物件IDを編集' : undefined}
+                >
+                  {property.id}
+                </button>
+              )}
 
               {/* Inline property name editing */}
               {editingName ? (
