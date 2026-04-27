@@ -33,8 +33,10 @@ export function useProperties(userId: string | undefined) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 初回ロードの "データを読み込み中..." は initial state (useState(true)) で出る。
+  // 追加・コピー・同期 後の再ロードでは loading をトグルしない（画面全体が
+  // フラッシュして「重い」感覚になるため）。
   const load = useCallback(async () => {
-    setLoading(true);
     const { data: props, error: propsError } = await supabase
       .from('properties')
       .select('*')

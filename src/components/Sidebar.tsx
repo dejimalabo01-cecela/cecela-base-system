@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus,
@@ -112,9 +113,12 @@ export function Sidebar({
   const isAdmin = role === 'admin';
   const activeModuleDef = MODULES.find(m => m.id === activeModule)!;
 
-  const recentProperties = [...properties]
-    .sort((a, b) => lastEditedTime(b) - lastEditedTime(a))
-    .slice(0, RECENT_LIMIT);
+  // properties が変わらなければ毎回ソートし直さない（タスク日付保存などで
+  // App が再描画される度に走るのを防ぐ）。
+  const recentProperties = useMemo(
+    () => [...properties].sort((a, b) => lastEditedTime(b) - lastEditedTime(a)).slice(0, RECENT_LIMIT),
+    [properties],
+  );
 
   return (
     <aside className="relative h-full bg-gray-900 text-white flex" style={{ width: '268px' }}>
