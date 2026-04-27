@@ -11,6 +11,7 @@ import {
   faGripVertical,
   faEye,
   faEyeSlash,
+  faTags,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   DndContext,
@@ -62,6 +63,11 @@ interface Props {
   onShowAllTasks: () => void;
 }
 
+// 販売管理で管理する工程かどうか（名前に「販売」を含む工程は読み取り専用）
+function isSalesManagedTask(task: Task): boolean {
+  return task.name.includes('販売');
+}
+
 interface TaskLabelRowProps {
   task: Task;
   canEdit: boolean;
@@ -76,6 +82,9 @@ interface TaskLabelRowProps {
 function SortableTaskLabelRow({
   task, canEdit, isSaving, startVal, endVal, onChangeDate, onBlurDate, onToggleHidden,
 }: TaskLabelRowProps) {
+  const salesManaged = isSalesManagedTask(task);
+  const dateInputDisabled = !canEdit || task.hidden || salesManaged;
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !canEdit || task.hidden,
@@ -95,7 +104,7 @@ function SortableTaskLabelRow({
     >
       <div
         className="w-32 md:w-44 px-2 md:px-3 py-2 text-[11px] md:text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1"
-        title={task.name}
+        title={salesManaged ? `${task.name}（販売管理で編集）` : task.name}
         style={{ borderLeft: `3px solid ${task.color}` }}
       >
         {canEdit && !task.hidden && (
@@ -120,6 +129,13 @@ function SortableTaskLabelRow({
           </button>
         )}
         <span className="truncate flex-1">{task.name}</span>
+        {salesManaged && (
+          <FontAwesomeIcon
+            icon={faTags}
+            className="text-[10px] text-blue-500 shrink-0"
+            title="この工程は「販売管理」で編集します"
+          />
+        )}
         {isSaving && (
           <span className="text-[10px] text-blue-400 shrink-0">保存中…</span>
         )}
@@ -128,10 +144,13 @@ function SortableTaskLabelRow({
         <input
           type="date"
           value={startVal}
-          disabled={!canEdit || task.hidden}
-          onChange={e => onChangeDate('startDate', e.target.value)}
-          onBlur={() => onBlurDate('startDate')}
-          className="w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+          disabled={dateInputDisabled}
+          onChange={e => !salesManaged && onChangeDate('startDate', e.target.value)}
+          onBlur={() => !salesManaged && onBlurDate('startDate')}
+          title={salesManaged ? '販売管理で編集してください' : undefined}
+          className={`w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default ${
+            salesManaged ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+          }`}
         />
       </div>
       <div className="w-24 md:w-32 px-1.5 md:px-2 border-r border-gray-200 dark:border-gray-700">
@@ -139,10 +158,13 @@ function SortableTaskLabelRow({
           type="date"
           value={endVal}
           min={startVal || undefined}
-          disabled={!canEdit || task.hidden}
-          onChange={e => onChangeDate('endDate', e.target.value)}
-          onBlur={() => onBlurDate('endDate')}
-          className="w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
+          disabled={dateInputDisabled}
+          onChange={e => !salesManaged && onChangeDate('endDate', e.target.value)}
+          onBlur={() => !salesManaged && onBlurDate('endDate')}
+          title={salesManaged ? '販売管理で編集してください' : undefined}
+          className={`w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default ${
+            salesManaged ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+          }`}
         />
       </div>
     </div>
@@ -287,6 +309,13 @@ export function GanttChart({
       if (s) allDates.push(s);
       if (e) allDates.push(e);
     }
+    // 販売管理由来の日付もタイムラインに含める
+    const sale = parseDate(property.saleStartDate ?? null);
+    const contract = parseDate(property.contractDate ?? null);
+    const settle = parseDate(property.settlementDate ?? null);
+    if (sale) allDates.push(sale);
+    if (contract) allDates.push(contract);
+    if (settle) allDates.push(settle);
     let from: Date;
     let to: Date;
     if (allDates.length === 0) {
@@ -302,7 +331,7 @@ export function GanttChart({
       }
     }
     return getMonthRange(from, to);
-  }, [visibleTasks, today]);
+  }, [visibleTasks, today, property.saleStartDate, property.contractDate, property.settlementDate]);
 
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth();
@@ -447,6 +476,39 @@ export function GanttChart({
                 </select>
               </div>
             </div>
+
+            {/* 販売管理から取得する情報（読み取り専用） */}
+            <div className="flex items-center gap-2 md:gap-3 flex-wrap mt-1.5 text-[11px] text-gray-600 dark:text-gray-300 bg-blue-50/40 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800/40 rounded px-2.5 py-1">
+              <FontAwesomeIcon icon={faTags} className="text-blue-500 text-[10px] shrink-0" />
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">販売管理:</span>
+              <span>
+                <span className="text-[10px] text-gray-500">販売開始日</span>
+                <span className="ml-1 font-mono">{property.saleStartDate ?? '―'}</span>
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span>
+                <span className="text-[10px] text-gray-500">販売価格</span>
+                <span className={`ml-1 font-mono ${property.pricePending ? 'text-yellow-700 dark:text-yellow-300' : ''}`}>
+                  {property.salePrice != null ? property.salePrice.toLocaleString('ja-JP') : '―'}
+                  {property.pricePending && <span className="ml-0.5 text-[9px]">（未確定）</span>}
+                </span>
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span>
+                <span className="text-[10px] text-gray-500">ステータス</span>
+                <span className="ml-1">{property.status ?? '―'}</span>
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span>
+                <span className="text-[10px] text-gray-500">契約日</span>
+                <span className="ml-1 font-mono">{property.contractDate ?? '―'}</span>
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span>
+                <span className="text-[10px] text-gray-500">決済日</span>
+                <span className="ml-1 font-mono">{property.settlementDate ?? '―'}</span>
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5 md:gap-2 shrink-0 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
@@ -534,19 +596,29 @@ export function GanttChart({
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                {visibleTasks.map(task => (
-                  <SortableTaskLabelRow
-                    key={task.id}
-                    task={task}
-                    canEdit={canEdit}
-                    isSaving={saving === task.id}
-                    startVal={getLocalDate(task.id, 'startDate', task.startDate)}
-                    endVal={getLocalDate(task.id, 'endDate', task.endDate)}
-                    onChangeDate={(field, value) => handleDateChange(task.id, field, value)}
-                    onBlurDate={field => handleDateBlur(task.id, field)}
-                    onToggleHidden={() => onSetTaskHidden(task.id, !task.hidden)}
-                  />
-                ))}
+                {visibleTasks.map(task => {
+                  // 販売タスクの開始日は販売管理で管理。空ならフォールバックとして property.saleStartDate を表示
+                  const salesManaged = isSalesManagedTask(task);
+                  const startVal = salesManaged
+                    ? (property.saleStartDate ?? task.startDate ?? '')
+                    : getLocalDate(task.id, 'startDate', task.startDate);
+                  const endVal = salesManaged
+                    ? (task.endDate ?? '')
+                    : getLocalDate(task.id, 'endDate', task.endDate);
+                  return (
+                    <SortableTaskLabelRow
+                      key={task.id}
+                      task={task}
+                      canEdit={canEdit}
+                      isSaving={saving === task.id}
+                      startVal={startVal}
+                      endVal={endVal}
+                      onChangeDate={(field, value) => handleDateChange(task.id, field, value)}
+                      onBlurDate={field => handleDateBlur(task.id, field)}
+                      onToggleHidden={() => onSetTaskHidden(task.id, !task.hidden)}
+                    />
+                  );
+                })}
               </SortableContext>
             </DndContext>
           </div>
@@ -594,8 +666,10 @@ export function GanttChart({
             </div>
 
             {visibleTasks.map(task => {
-              const taskStart = parseDate(task.startDate);
-              const taskEnd = parseDate(task.endDate);
+              // 販売タスクは販売管理の saleStartDate を優先表示
+              const salesManaged = isSalesManagedTask(task);
+              const taskStart = parseDate(salesManaged ? (property.saleStartDate ?? task.startDate) : task.startDate);
+              const taskEnd = parseDate(salesManaged ? (property.saleStartDate ?? task.endDate) : task.endDate);
               const rowOpacity = task.hidden ? 0.45 : 1;
               return (
                 <div

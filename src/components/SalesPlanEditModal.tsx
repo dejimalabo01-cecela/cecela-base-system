@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faLink, faClock } from '@fortawesome/free-solid-svg-icons';
-import type { Property, PropertyStatus, PropertyType } from '../types';
-import { PROPERTY_STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from '../types';
+import { faXmark, faLink, faClock, faTags } from '@fortawesome/free-solid-svg-icons';
+import type { Property, PropertyType } from '../types';
+import { PROPERTY_TYPE_OPTIONS } from '../types';
 import { findSaleTask, getSaleStartDate, getSaleStartSource } from '../utils/salesHelpers';
 
 type UpdateIdResult = { ok: true } | { ok: false; reason: 'invalid' | 'duplicate' | 'notfound' | 'db' };
@@ -12,13 +12,24 @@ interface Props {
   isAdmin: boolean;
   onSaveSalesInfo: (
     updates: Partial<Pick<Property,
-      'propertyType' | 'status' | 'cost' | 'loan' | 'salePrice' |
-      'saleStartDate' | 'contractDate' | 'pricePending'
+      'propertyType' | 'cost' | 'loan'
     >>
   ) => Promise<void>;
   onUpdatePropertyName: (name: string) => Promise<void>;
   onUpdatePropertyId: (newId: string) => Promise<UpdateIdResult>;
   onClose: () => void;
+}
+
+function statusBadgeColor(s: string | null | undefined): string {
+  switch (s) {
+    case '契約済':       return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
+    case '契約予定':     return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
+    case '期中完成販売': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+    case '完成済':       return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+    case 'R8年度完成':   return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
+    case '竣工予定日なし': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
+    default: return '';
+  }
 }
 
 export function SalesPlanEditModal({
@@ -29,12 +40,8 @@ export function SalesPlanEditModal({
   const [propertyId, setPropertyId] = useState<string>(property.id);
   const [propertyName, setPropertyName] = useState<string>(property.name);
   const [propertyType, setPropertyType] = useState<PropertyType | ''>(property.propertyType ?? '');
-  const [status, setStatus] = useState<PropertyStatus | ''>(property.status ?? '');
   const [cost, setCost] = useState<string>(property.cost != null ? String(property.cost) : '');
   const [loan, setLoan] = useState<string>(property.loan != null ? String(property.loan) : '');
-  const [salePrice, setSalePrice] = useState<string>(property.salePrice != null ? String(property.salePrice) : '');
-  const [contractDate, setContractDate] = useState<string>(property.contractDate ?? '');
-  const [pricePending, setPricePending] = useState<boolean>(property.pricePending ?? false);
   const [saving, setSaving] = useState(false);
 
   // 販売開始日は工程管理の「販売」タスクから自動取得（フォールバックで property.saleStartDate）
@@ -51,12 +58,7 @@ export function SalesPlanEditModal({
     if (!iso) return '';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${y}/${m}/${dd} ${hh}:${mm}`;
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -75,7 +77,7 @@ export function SalesPlanEditModal({
             db:        '物件IDの保存に失敗しました（schema_update_v5.sql は実行済みですか？）。',
           };
           alert(messages[result.reason]);
-          return; // ID変更失敗時は他の保存も止める
+          return;
         }
       }
 
@@ -85,15 +87,12 @@ export function SalesPlanEditModal({
         await onUpdatePropertyName(trimmedName);
       }
 
-      // 3) 販売情報の保存
+      // 3) 販売情報の保存（種別・原価・借入のみ。
+      //    販売価格・ステータス・契約日・決済日は「販売管理」モジュールで編集する。）
       await onSaveSalesInfo({
         propertyType: propertyType || null,
-        status: status || null,
         cost: cost.trim() === '' ? null : toNum(cost),
         loan: loan.trim() === '' ? null : toNum(loan),
-        salePrice: salePrice.trim() === '' ? null : toNum(salePrice),
-        contractDate: contractDate || null,
-        pricePending,
       });
 
       onClose();
@@ -165,19 +164,6 @@ export function SalesPlanEditModal({
             </select>
           </div>
 
-          {/* 契約ステータス */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">契約ステータス</label>
-            <select
-              value={status}
-              onChange={e => setStatus(e.target.value as PropertyStatus | '')}
-              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-            >
-              <option value="">未設定</option>
-              {PROPERTY_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          </div>
-
           {/* 原価 / 借入 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -204,7 +190,6 @@ export function SalesPlanEditModal({
             </div>
           </div>
 
-          {/* 計算表示（原価×15% / 自己資金） */}
           {(computedBuffer != null || ownFund != null) && (
             <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 rounded px-3 py-2 space-y-0.5">
               <div>原価 × 15% ＝ <span className="font-mono text-gray-700 dark:text-gray-300">{fmt(computedBuffer)}</span></div>
@@ -212,65 +197,62 @@ export function SalesPlanEditModal({
             </div>
           )}
 
-          {/* 販売価格 + 未確定 */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">販売価格（円）</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={salePrice}
-                onChange={e => setSalePrice(e.target.value)}
-                placeholder="例: 78000000"
-                className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-              />
-              <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg px-3">
-                <input
-                  type="checkbox"
-                  checked={pricePending}
-                  onChange={e => setPricePending(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
-                />
-                未確定
-              </label>
+          {/* 販売管理から取得する項目（読み取り専用表示） */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/40">
+            <div className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+              <FontAwesomeIcon icon={faTags} className="text-blue-500" />
+              販売情報（販売管理で編集）
             </div>
-            {property.salePriceUpdatedAt && (
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                <FontAwesomeIcon icon={faClock} className="text-[9px]" />
-                価格変更日: <span className="font-mono">{formatDateTime(property.salePriceUpdatedAt)}</span>
-              </p>
-            )}
-          </div>
-
-          {/* 販売開始日（自動取得・読取専用） */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1.5">
-              販売開始日
-              <FontAwesomeIcon icon={faLink} className="text-[10px] text-blue-500" />
-              <span className="text-[10px] font-normal text-blue-500">工程管理から自動取得</span>
-            </label>
-            <div className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300 flex items-center justify-between">
-              <span className="font-mono">{saleStartDate || '未設定'}</span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                {saleSource === 'task' && saleTask && `← 工程「${saleTask.name}」`}
-                {saleSource === 'fallback' && '← 手動入力'}
-                {saleSource === 'none' && '工程管理に「販売」タスクが見つかりません'}
-              </span>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">販売開始日</div>
+                <div className="font-mono text-gray-700 dark:text-gray-200">
+                  {saleStartDate || '未設定'}
+                  <span className="text-[10px] text-gray-400 ml-1">
+                    {saleSource === 'task' && saleTask && `← 工程「${saleTask.name}」`}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">販売価格</div>
+                <div className={`font-mono ${property.pricePending ? 'text-yellow-700 dark:text-yellow-300' : 'text-gray-700 dark:text-gray-200'}`}>
+                  {property.salePrice != null ? property.salePrice.toLocaleString('ja-JP') + ' 円' : '未設定'}
+                  {property.pricePending && <span className="ml-1 text-[10px]">（未確定）</span>}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">契約ステータス</div>
+                <div>
+                  {property.status ? (
+                    <span className={`inline-block text-[10px] px-2 py-0.5 rounded ${statusBadgeColor(property.status)}`}>{property.status}</span>
+                  ) : (
+                    <span className="text-gray-400">未設定</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">契約日</div>
+                <div className="font-mono text-gray-700 dark:text-gray-200">{property.contractDate ?? '未設定'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">決済日</div>
+                <div className="font-mono text-gray-700 dark:text-gray-200">{property.settlementDate ?? '未設定'}</div>
+              </div>
+              {property.salePriceUpdatedAt && (
+                <div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <FontAwesomeIcon icon={faClock} className="text-[9px]" />
+                    価格変更日
+                  </div>
+                  <div className="font-mono text-gray-600 dark:text-gray-300 text-[11px]">
+                    {formatDateTime(property.salePriceUpdatedAt)}
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
-              変更したい場合は、工程管理でこの物件の「販売」工程の開始日を編集してください。
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-2">
+              これらの項目は左メニューの「販売管理」で編集してください。
             </p>
-          </div>
-
-          {/* 契約日 */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">契約日</label>
-            <input
-              type="date"
-              value={contractDate}
-              onChange={e => setContractDate(e.target.value)}
-              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-            />
           </div>
         </form>
 

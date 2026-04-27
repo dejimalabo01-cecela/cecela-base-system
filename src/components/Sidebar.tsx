@@ -21,6 +21,7 @@ import {
   faEnvelope,
   faXmark,
   faMoneyBillTrendUp,
+  faTags,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { ModuleId, Property } from '../types';
@@ -50,6 +51,11 @@ const MODULES: {
     id: 'construction',
     label: '工程管理',
     icon: faBuilding,
+  },
+  {
+    id: 'sales-management',
+    label: '販売管理',
+    icon: faTags,
   },
   {
     id: 'sales-plan',

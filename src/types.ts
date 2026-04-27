@@ -52,6 +52,7 @@ export interface Property {
   salePrice?: number | null;
   saleStartDate?: string | null;  // YYYY-MM-DD
   contractDate?: string | null;   // YYYY-MM-DD
+  settlementDate?: string | null; // YYYY-MM-DD - 決済日
   pricePending?: boolean;
   salePriceUpdatedAt?: string | null;  // ISO timestamp - 販売価格が変わった日時
 }
@@ -75,7 +76,7 @@ export interface UserProfile {
 }
 
 // サイドバーのモジュール定義
-export type ModuleId = 'construction' | 'sales-plan' | 'marketing' | 'sales';
+export type ModuleId = 'construction' | 'sales-management' | 'sales-plan' | 'marketing' | 'sales';
 
 export interface AppModule {
   id: ModuleId;

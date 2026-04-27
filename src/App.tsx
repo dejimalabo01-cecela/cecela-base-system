@@ -20,6 +20,7 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { SalesPlanView } from './components/SalesPlanView';
 import { SalesPlanEditModal } from './components/SalesPlanEditModal';
 import { CsvImportModal } from './components/CsvImportModal';
+import { SalesManagementView } from './components/SalesManagementView';
 import type { ModuleId } from './types';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
@@ -119,6 +120,7 @@ export default function App() {
 
   // モバイルのトップバーに表示する現在の画面タイトル
   function currentScreenTitle(): string {
+    if (activeModule === 'sales-management') return '販売管理';
     if (activeModule === 'sales-plan') return '販売計画';
     if (activeModule === 'marketing') return 'マーケ';
     if (activeModule === 'sales') return '営業';
@@ -129,6 +131,24 @@ export default function App() {
 
   // メインコンテンツの描画
   function renderMain() {
+    // 販売管理モジュール
+    if (activeModule === 'sales-management') {
+      if (loading) {
+        return (
+          <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+            データを読み込み中...
+          </div>
+        );
+      }
+      return (
+        <SalesManagementView
+          properties={properties}
+          role={role}
+          onSaveSalesInfo={(propertyId, updates) => updateSalesInfo(propertyId, updates, userEmail)}
+        />
+      );
+    }
+
     // 販売計画モジュール
     if (activeModule === 'sales-plan') {
       if (loading) {

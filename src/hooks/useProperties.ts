@@ -104,6 +104,7 @@ export function useProperties(userId: string | undefined) {
         salePrice: p.sale_price ?? null,
         saleStartDate: p.sale_start_date ?? null,
         contractDate: p.contract_date ?? null,
+        settlementDate: p.settlement_date ?? null,
         pricePending: p.price_pending ?? false,
         salePriceUpdatedAt: p.sale_price_updated_at ?? null,
       };
@@ -360,7 +361,7 @@ export function useProperties(userId: string | undefined) {
     propertyId: string,
     updates: Partial<Pick<Property,
       'propertyType' | 'status' | 'cost' | 'loan' | 'salePrice' |
-      'saleStartDate' | 'contractDate' | 'pricePending'
+      'saleStartDate' | 'contractDate' | 'settlementDate' | 'pricePending'
     >>,
     userEmail?: string,
   ) {
@@ -396,6 +397,7 @@ export function useProperties(userId: string | undefined) {
     if (updates.salePrice !== undefined)      dbUpdates.sale_price       = updates.salePrice;
     if (updates.saleStartDate !== undefined)  dbUpdates.sale_start_date  = updates.saleStartDate;
     if (updates.contractDate !== undefined)   dbUpdates.contract_date    = updates.contractDate;
+    if (updates.settlementDate !== undefined) dbUpdates.settlement_date  = updates.settlementDate;
     if (updates.pricePending !== undefined)   dbUpdates.price_pending    = updates.pricePending;
     if (priceUpdatedAt)                       dbUpdates.sale_price_updated_at = priceUpdatedAt;
 
