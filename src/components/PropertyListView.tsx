@@ -7,9 +7,16 @@ import type { Property, Member } from '../types';
 import type { Role } from '../hooks/useRole';
 import { exportAllToExcel, exportAllToCSV } from '../utils/exportUtils';
 import { Pagination, SortHeader } from './Pagination';
+import { ResizeHandle } from './ResizeHandle';
+import { useColumnWidths } from '../hooks/useColumnWidths';
 
 type SortKey = 'id' | 'name' | 'assignee' | 'period' | 'progress' | 'createdAt';
 type SortDir = 'asc' | 'desc';
+
+type ColKey = 'id' | 'name' | 'assignee' | 'period' | 'progress' | 'createdAt';
+const DEFAULT_COL_WIDTHS: Record<ColKey, number> = {
+  id: 96, name: 280, assignee: 120, period: 208, progress: 144, createdAt: 112,
+};
 
 interface Props {
   properties: Property[];
@@ -29,6 +36,10 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [pageSize, setPageSize] = useState<number>(10);
   const [page, setPage] = useState<number>(1);
+  const { widths: colW, setWidth: setColW } = useColumnWidths<ColKey>(
+    'colw:property-list',
+    DEFAULT_COL_WIDTHS,
+  );
 
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
@@ -363,11 +374,20 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
             </div>
 
             {/* Desktop: table layout */}
-            <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
+            <table className="text-sm" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+              <colgroup>
+                <col style={{ width: 40 }} />
+                <col style={{ width: colW.id }} />
+                <col style={{ width: colW.name }} />
+                <col style={{ width: colW.assignee }} />
+                <col style={{ width: colW.period }} />
+                <col style={{ width: colW.progress }} />
+                <col style={{ width: colW.createdAt }} />
+              </colgroup>
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-3 w-10">
+                  <th className="px-4 py-3">
                     <input
                       type="checkbox"
                       checked={allVisibleChecked}
@@ -377,23 +397,29 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
                       aria-label="全件選択"
                     />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-24">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 relative">
                     <SortHeader label="物件ID" active={sortKey === 'id'} dir={sortDir} onClick={() => toggleSort('id')} />
+                    <ResizeHandle getCurrent={() => colW.id} onResize={w => setColW('id', w)} />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 relative">
                     <SortHeader label="物件名" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+                    <ResizeHandle getCurrent={() => colW.name} onResize={w => setColW('name', w)} />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 relative">
                     <SortHeader label="担当者" active={sortKey === 'assignee'} dir={sortDir} onClick={() => toggleSort('assignee')} />
+                    <ResizeHandle getCurrent={() => colW.assignee} onResize={w => setColW('assignee', w)} />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-52">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 relative">
                     <SortHeader label="期間" active={sortKey === 'period'} dir={sortDir} onClick={() => toggleSort('period')} />
+                    <ResizeHandle getCurrent={() => colW.period} onResize={w => setColW('period', w)} />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-36">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 relative">
                     <SortHeader label="進捗" active={sortKey === 'progress'} dir={sortDir} onClick={() => toggleSort('progress')} />
+                    <ResizeHandle getCurrent={() => colW.progress} onResize={w => setColW('progress', w)} />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 relative">
                     <SortHeader label="登録日" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
+                    <ResizeHandle getCurrent={() => colW.createdAt} onResize={w => setColW('createdAt', w)} />
                   </th>
                 </tr>
               </thead>
@@ -422,16 +448,20 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
                           aria-label={`${p.name} を選択`}
                         />
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded">
+                      <td className="px-4 py-3 overflow-hidden">
+                        <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded inline-block truncate max-w-full" title={p.id}>
                           {p.id}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-gray-800 dark:text-gray-100">{p.name}</span>
+                      <td className="px-4 py-3 overflow-hidden">
+                        <span className="font-medium text-gray-800 dark:text-gray-100 block truncate" title={p.name}>{p.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{getAssigneeName(p)}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-mono">{getDateRange(p)}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300 overflow-hidden">
+                        <span className="block truncate" title={getAssigneeName(p)}>{getAssigneeName(p)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-mono overflow-hidden">
+                        <span className="block truncate" title={getDateRange(p)}>{getDateRange(p)}</span>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">

@@ -12,9 +12,17 @@ import { getSaleStartDate } from '../utils/salesHelpers';
 import { Pagination, SortHeader } from './Pagination';
 import { exportSalesPlanToCSV, exportSalesPlanToExcel } from '../utils/exportUtils';
 import { ContractDetailModal } from './ContractDetailModal';
+import { ResizeHandle } from './ResizeHandle';
+import { useColumnWidths } from '../hooks/useColumnWidths';
 
 type SortKey = 'id' | 'name' | 'type' | 'status' | 'price';
 type SortDir = 'asc' | 'desc';
+
+type SalesColKey = 'id' | 'name' | 'type' | 'status' | 'price';
+const SALES_DEFAULT_WIDTHS: Record<SalesColKey, number> = {
+  id: 96, name: 224, type: 112, status: 112, price: 96,
+};
+const CHECK_COL_W = 40;
 
 const MONTH_CELL_W = 52;
 const FY_MONTH_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2]; // Apr..Mar
@@ -83,6 +91,11 @@ export function SalesPlanView({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   // 契約金額の内訳ポップアップ。{year, month: null} = 年合計、{year, month: 0..11} = その月
   const [contractDetail, setContractDetail] = useState<null | { year: number; month: number | null }>(null);
+  const { widths: colW, setWidth: setColW } = useColumnWidths<SalesColKey>(
+    'colw:sales-plan',
+    SALES_DEFAULT_WIDTHS,
+  );
+  const cellW = (k: SalesColKey): React.CSSProperties => ({ width: colW[k], minWidth: colW[k] });
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -462,7 +475,10 @@ export function SalesPlanView({
           {/* Left: property info */}
           <div className="sticky left-0 z-20 bg-white dark:bg-gray-800 shrink-0 shadow-[2px_0_6px_rgba(0,0,0,0.08)]">
             <div className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex h-16">
-              <div className="w-10 px-1 py-2 border-r border-gray-200 dark:border-gray-700 flex items-end justify-center">
+              <div
+                style={{ width: CHECK_COL_W, minWidth: CHECK_COL_W }}
+                className="px-1 py-2 border-r border-gray-200 dark:border-gray-700 flex items-end justify-center shrink-0"
+              >
                 <input
                   type="checkbox"
                   checked={allVisibleChecked}
@@ -472,20 +488,40 @@ export function SalesPlanView({
                   aria-label="ページ内 全件選択"
                 />
               </div>
-              <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+              <div
+                style={cellW('id')}
+                className="relative px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end shrink-0"
+              >
                 <SortHeader label="ID" active={sortKey === 'id'} dir={sortDir} onClick={() => toggleSort('id')} />
+                <ResizeHandle getCurrent={() => colW.id} onResize={w => setColW('id', w)} />
               </div>
-              <div className="w-56 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+              <div
+                style={cellW('name')}
+                className="relative px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end shrink-0"
+              >
                 <SortHeader label="物件名" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+                <ResizeHandle getCurrent={() => colW.name} onResize={w => setColW('name', w)} />
               </div>
-              <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+              <div
+                style={cellW('type')}
+                className="relative px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end shrink-0"
+              >
                 <SortHeader label="種別" active={sortKey === 'type'} dir={sortDir} onClick={() => toggleSort('type')} />
+                <ResizeHandle getCurrent={() => colW.type} onResize={w => setColW('type', w)} />
               </div>
-              <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+              <div
+                style={cellW('status')}
+                className="relative px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end shrink-0"
+              >
                 <SortHeader label="ステータス" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
+                <ResizeHandle getCurrent={() => colW.status} onResize={w => setColW('status', w)} />
               </div>
-              <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end text-right">
+              <div
+                style={cellW('price')}
+                className="relative px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end text-right shrink-0"
+              >
                 <SortHeader label="販売価格" active={sortKey === 'price'} dir={sortDir} onClick={() => toggleSort('price')} className="ml-auto" />
+                <ResizeHandle getCurrent={() => colW.price} onResize={w => setColW('price', w)} />
               </div>
             </div>
             {pageRows.map(p => {
@@ -499,7 +535,11 @@ export function SalesPlanView({
                 }`}
                 onClick={() => canEdit && onEdit(p.id)}
               >
-                <div className="w-10 px-1 border-r border-gray-200 dark:border-gray-700 flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                <div
+                  style={{ width: CHECK_COL_W, minWidth: CHECK_COL_W }}
+                  className="px-1 border-r border-gray-200 dark:border-gray-700 flex items-center justify-center shrink-0"
+                  onClick={e => e.stopPropagation()}
+                >
                   <input
                     type="checkbox"
                     checked={isChecked}
@@ -508,26 +548,29 @@ export function SalesPlanView({
                     aria-label={`${p.name} を選択`}
                   />
                 </div>
-                <div className="w-24 px-2 text-[10px] font-mono text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700">
+                <div style={cellW('id')} className="px-2 text-[10px] font-mono text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 truncate shrink-0">
                   {p.id}
                 </div>
-                <div className="w-56 px-3 text-xs font-medium text-gray-700 dark:text-gray-200 truncate border-r border-gray-200 dark:border-gray-700 flex items-center gap-2" title={p.name}>
+                <div style={cellW('name')} className="px-3 text-xs font-medium text-gray-700 dark:text-gray-200 truncate border-r border-gray-200 dark:border-gray-700 flex items-center gap-2 shrink-0" title={p.name}>
                   <span className="truncate">{p.name}</span>
                   {canEdit && (
                     <FontAwesomeIcon icon={faPen} className="text-[10px] opacity-0 group-hover:opacity-60 shrink-0" />
                   )}
                 </div>
-                <div className="w-28 px-2 text-[11px] text-gray-600 dark:text-gray-300 truncate border-r border-gray-200 dark:border-gray-700">
+                <div style={cellW('type')} className="px-2 text-[11px] text-gray-600 dark:text-gray-300 truncate border-r border-gray-200 dark:border-gray-700 shrink-0">
                   {p.propertyType || '―'}
                 </div>
-                <div className="w-28 px-2 border-r border-gray-200 dark:border-gray-700">
+                <div style={cellW('status')} className="px-2 border-r border-gray-200 dark:border-gray-700 shrink-0 truncate">
                   {p.status ? (
                     <span className={`inline-block text-[10px] px-2 py-0.5 rounded ${STATUS_COLOR(p.status)}`}>{p.status}</span>
                   ) : (
                     <span className="text-[10px] text-gray-400">―</span>
                   )}
                 </div>
-                <div className={`w-24 px-2 border-r border-gray-200 dark:border-gray-700 flex flex-col justify-center text-right ${p.pricePending ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
+                <div
+                  style={cellW('price')}
+                  className={`px-2 border-r border-gray-200 dark:border-gray-700 flex flex-col justify-center text-right shrink-0 ${p.pricePending ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
+                >
                   <span className="text-[11px] font-mono truncate">{p.salePrice ? formatYen(p.salePrice) : '―'}</span>
                   {p.salePriceUpdatedAt && (
                     <span
@@ -543,26 +586,27 @@ export function SalesPlanView({
             })}
             {/* totals row 1: 販売価格 */}
             <div className="flex items-center border-b border-gray-200 dark:border-gray-700 h-10 bg-gray-50 dark:bg-gray-900/70">
-              <div className="w-10 border-r border-gray-200 dark:border-gray-700" />
-              <div className="w-24 px-2 text-[10px] font-mono text-gray-500 border-r border-gray-200 dark:border-gray-700">合計</div>
-              <div className="w-56 px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">販売価格 合計（月＝販売開始月）</div>
-              <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
-              <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
-              <div className="w-24 px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200">
+              <div style={{ width: CHECK_COL_W, minWidth: CHECK_COL_W }} className="border-r border-gray-200 dark:border-gray-700 shrink-0" />
+              <div style={cellW('id')} className="px-2 text-[10px] font-mono text-gray-500 border-r border-gray-200 dark:border-gray-700 shrink-0 truncate">合計</div>
+              <div style={cellW('name')} className="px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 shrink-0 truncate">販売価格 合計（月＝販売開始月）</div>
+              <div style={cellW('type')} className="border-r border-gray-200 dark:border-gray-700 shrink-0" />
+              <div style={cellW('status')} className="border-r border-gray-200 dark:border-gray-700 shrink-0" />
+              <div style={cellW('price')} className="px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 shrink-0 truncate">
                 {formatYen(totalSum)}
               </div>
             </div>
             {/* totals row 2: 契約金額 */}
             <div className="flex items-center border-b-2 border-gray-300 dark:border-gray-600 h-10 bg-blue-50/40 dark:bg-blue-900/20">
-              <div className="w-10 border-r border-gray-200 dark:border-gray-700" />
-              <div className="w-24 px-2 text-[10px] font-mono text-blue-600 dark:text-blue-300 border-r border-gray-200 dark:border-gray-700">契約合計</div>
-              <div className="w-56 px-3 text-xs font-semibold text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">契約金額 合計（月＝契約日）</div>
-              <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
-              <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
+              <div style={{ width: CHECK_COL_W, minWidth: CHECK_COL_W }} className="border-r border-gray-200 dark:border-gray-700 shrink-0" />
+              <div style={cellW('id')} className="px-2 text-[10px] font-mono text-blue-600 dark:text-blue-300 border-r border-gray-200 dark:border-gray-700 shrink-0 truncate">契約合計</div>
+              <div style={cellW('name')} className="px-3 text-xs font-semibold text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700 shrink-0 truncate">契約金額 合計（月＝契約日）</div>
+              <div style={cellW('type')} className="border-r border-gray-200 dark:border-gray-700 shrink-0" />
+              <div style={cellW('status')} className="border-r border-gray-200 dark:border-gray-700 shrink-0" />
               <button
                 onClick={() => contractTotalSum > 0 && setContractDetail({ year: fy, month: null })}
                 disabled={contractTotalSum === 0}
-                className="w-24 px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-default disabled:hover:bg-transparent transition cursor-pointer h-full"
+                style={cellW('price')}
+                className="px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-default disabled:hover:bg-transparent transition cursor-pointer h-full shrink-0 truncate"
                 title={contractTotalSum > 0 ? 'クリックで契約物件の内訳を表示' : ''}
               >
                 {contractTotalSum > 0 ? (
