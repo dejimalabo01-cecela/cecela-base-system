@@ -1,22 +1,33 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faLink } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faLink, faClock } from '@fortawesome/free-solid-svg-icons';
 import type { Property, PropertyStatus, PropertyType } from '../types';
 import { PROPERTY_STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from '../types';
 import { findSaleTask, getSaleStartDate, getSaleStartSource } from '../utils/salesHelpers';
 
+type UpdateIdResult = { ok: true } | { ok: false; reason: 'invalid' | 'duplicate' | 'notfound' | 'db' };
+
 interface Props {
   property: Property;
-  onSave: (
+  isAdmin: boolean;
+  onSaveSalesInfo: (
     updates: Partial<Pick<Property,
       'propertyType' | 'status' | 'cost' | 'loan' | 'salePrice' |
       'saleStartDate' | 'contractDate' | 'pricePending'
     >>
   ) => Promise<void>;
+  onUpdatePropertyName: (name: string) => Promise<void>;
+  onUpdatePropertyId: (newId: string) => Promise<UpdateIdResult>;
   onClose: () => void;
 }
 
-export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
+export function SalesPlanEditModal({
+  property, isAdmin,
+  onSaveSalesInfo, onUpdatePropertyName, onUpdatePropertyId,
+  onClose,
+}: Props) {
+  const [propertyId, setPropertyId] = useState<string>(property.id);
+  const [propertyName, setPropertyName] = useState<string>(property.name);
   const [propertyType, setPropertyType] = useState<PropertyType | ''>(property.propertyType ?? '');
   const [status, setStatus] = useState<PropertyStatus | ''>(property.status ?? '');
   const [cost, setCost] = useState<string>(property.cost != null ? String(property.cost) : '');
@@ -36,11 +47,46 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
     return Number.isFinite(n) ? n : null;
   };
 
+  function formatDateTime(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}/${m}/${dd} ${hh}:${mm}`;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave({
+      // 1) 物件ID変更（admin限定、既存と違うときだけ）
+      const trimmedId = propertyId.trim();
+      if (isAdmin && trimmedId && trimmedId !== property.id) {
+        const result = await onUpdatePropertyId(trimmedId);
+        if (!result.ok) {
+          const messages: Record<typeof result.reason, string> = {
+            invalid:   '物件IDに使用できない文字が含まれています。英数字 / . / - / _ のみ使えます。',
+            duplicate: `物件ID「${trimmedId}」は既に他の物件で使われています。`,
+            notfound:  '対象の物件が見つかりません。',
+            db:        '物件IDの保存に失敗しました（schema_update_v5.sql は実行済みですか？）。',
+          };
+          alert(messages[result.reason]);
+          return; // ID変更失敗時は他の保存も止める
+        }
+      }
+
+      // 2) 物件名変更（変わったときだけ）
+      const trimmedName = propertyName.trim();
+      if (trimmedName && trimmedName !== property.name) {
+        await onUpdatePropertyName(trimmedName);
+      }
+
+      // 3) 販売情報の保存
+      await onSaveSalesInfo({
         propertyType: propertyType || null,
         status: status || null,
         cost: cost.trim() === '' ? null : toNum(cost),
@@ -49,6 +95,7 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
         contractDate: contractDate || null,
         pricePending,
       });
+
       onClose();
     } finally {
       setSaving(false);
@@ -75,6 +122,36 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* 物件ID / 物件名 */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                物件ID {!isAdmin && <span className="text-[10px] font-normal text-gray-400">(admin専用)</span>}
+              </label>
+              <input
+                type="text"
+                value={propertyId}
+                onChange={e => setPropertyId(e.target.value)}
+                disabled={!isAdmin}
+                placeholder="例: 003.1"
+                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-900/50 disabled:cursor-not-allowed font-mono"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">物件名</label>
+              <input
+                type="text"
+                value={propertyName}
+                onChange={e => setPropertyName(e.target.value)}
+                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-blue-500 -mt-3 flex items-center gap-1">
+            <FontAwesomeIcon icon={faLink} />
+            ID・物件名の変更は工程管理にも反映されます
+          </p>
+
           {/* 物件種別 */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">物件種別</label>
@@ -157,6 +234,12 @@ export function SalesPlanEditModal({ property, onSave, onClose }: Props) {
                 未確定
               </label>
             </div>
+            {property.salePriceUpdatedAt && (
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                <FontAwesomeIcon icon={faClock} className="text-[9px]" />
+                価格変更日: <span className="font-mono">{formatDateTime(property.salePriceUpdatedAt)}</span>
+              </p>
+            )}
           </div>
 
           {/* 販売開始日（自動取得・読取専用） */}

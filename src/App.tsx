@@ -19,6 +19,7 @@ import { PropertyListView } from './components/PropertyListView';
 import { UserManagementModal } from './components/UserManagementModal';
 import { SalesPlanView } from './components/SalesPlanView';
 import { SalesPlanEditModal } from './components/SalesPlanEditModal';
+import { CsvImportModal } from './components/CsvImportModal';
 import type { ModuleId } from './types';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
@@ -49,6 +50,7 @@ export default function App() {
     setTaskHidden, showAllTasks,
     syncWithTemplates,
     updateSalesInfo,
+    importPropertiesFromCSV,
   } = useProperties(user?.id);
   const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates(user?.id);
 
@@ -78,6 +80,7 @@ export default function App() {
   const [showList, setShowList] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesPlanEditId, setSalesPlanEditId] = useState<string | null>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   if (authLoading) {
     return (
@@ -140,6 +143,7 @@ export default function App() {
           properties={properties}
           role={role}
           onEdit={setSalesPlanEditId}
+          onImportCsv={() => setShowCsvImport(true)}
         />
       );
     }
@@ -323,11 +327,26 @@ export default function App() {
         return (
           <SalesPlanEditModal
             property={target}
-            onSave={(updates) => updateSalesInfo(target.id, updates, userEmail)}
+            isAdmin={role === 'admin'}
+            onSaveSalesInfo={(updates) => updateSalesInfo(target.id, updates, userEmail)}
+            onUpdatePropertyName={(name) => updatePropertyName(target.id, name, userEmail)}
+            onUpdatePropertyId={async (newId) => {
+              const result = await updatePropertyId(target.id, newId);
+              // 物件IDが変わったら、編集中の参照も新IDに付け替える
+              if (result.ok) setSalesPlanEditId(newId);
+              return result;
+            }}
             onClose={() => setSalesPlanEditId(null)}
           />
         );
       })()}
+      {showCsvImport && (
+        <CsvImportModal
+          existingProperties={properties}
+          onImport={importPropertiesFromCSV}
+          onClose={() => setShowCsvImport(false)}
+        />
+      )}
     </div>
   );
 }

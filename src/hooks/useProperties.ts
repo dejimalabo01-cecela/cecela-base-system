@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Property, Task, TaskTemplate } from '../types';
 import { supabase } from '../lib/supabase';
 
+// CSVから取込む1行ぶんの形。値が undefined のフィールドは「変更しない」、
+// null は「明示的に空にする」という意味で使い分ける。
+export interface ImportPropertyRow {
+  id: string;
+  name?: string;
+  salePrice?: number | null;
+  saleStartDate?: string | null;
+  contractDate?: string | null;
+}
+
 // 物件IDフォーマット：'001' 〜 '999...' の連番。
 // `P-001` 形式の旧データも、`003.1` のような枝番付きIDも、先頭の整数部分を見て最大値を算出する。
 function maxPropertyIdNumber(properties: Property[]): number {
@@ -95,6 +105,7 @@ export function useProperties(userId: string | undefined) {
         saleStartDate: p.sale_start_date ?? null,
         contractDate: p.contract_date ?? null,
         pricePending: p.price_pending ?? false,
+        salePriceUpdatedAt: p.sale_price_updated_at ?? null,
       };
     });
 
@@ -354,9 +365,22 @@ export function useProperties(userId: string | undefined) {
     userEmail?: string,
   ) {
     const now = new Date().toISOString();
+
+    // 販売価格が実際に変わったときだけ価格変更日を更新する
+    const current = properties.find(p => p.id === propertyId);
+    const priceChanged =
+      updates.salePrice !== undefined &&
+      (current?.salePrice ?? null) !== (updates.salePrice ?? null);
+    const priceUpdatedAt = priceChanged ? now : undefined;
+
     setProperties(prev =>
       prev.map(p => p.id === propertyId
-        ? { ...p, ...updates, updatedAt: now, updatedBy: userEmail ?? null }
+        ? {
+            ...p, ...updates,
+            updatedAt: now,
+            updatedBy: userEmail ?? null,
+            ...(priceChanged ? { salePriceUpdatedAt: now } : {}),
+          }
         : p
       )
     );
@@ -373,12 +397,112 @@ export function useProperties(userId: string | undefined) {
     if (updates.saleStartDate !== undefined)  dbUpdates.sale_start_date  = updates.saleStartDate;
     if (updates.contractDate !== undefined)   dbUpdates.contract_date    = updates.contractDate;
     if (updates.pricePending !== undefined)   dbUpdates.price_pending    = updates.pricePending;
+    if (priceUpdatedAt)                       dbUpdates.sale_price_updated_at = priceUpdatedAt;
 
     const { error } = await supabase.from('properties').update(dbUpdates).eq('id', propertyId);
     if (error) {
       // マイグレーション未実行のときはフィールドが無くて失敗する可能性があるため、フォールバックとして履歴列だけ更新
       console.error('updateSalesInfo error:', error);
     }
+  }
+
+  /**
+   * CSVインポート用のバルク取込み。
+   * - ID が無い物件は新規追加（テンプレートからタスク自動生成）
+   * - ID がある物件は overwrite=true のときだけ各フィールドを更新
+   * 戻り値: 件数サマリー
+   */
+  async function importPropertiesFromCSV(
+    rows: ImportPropertyRow[],
+    overwrite: boolean,
+  ): Promise<{ added: number; updated: number; skipped: number; errors: string[] }> {
+    const errors: string[] = [];
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    const existingIds = new Set(properties.map(p => p.id));
+    const now = new Date().toISOString();
+
+    // 1) 新規追加リスト と 上書きリスト を分ける
+    const toInsert: ImportPropertyRow[] = [];
+    const toUpdate: ImportPropertyRow[] = [];
+    for (const row of rows) {
+      if (!row.id) {
+        errors.push('物件IDが空の行があります（スキップ）');
+        skipped++;
+        continue;
+      }
+      if (existingIds.has(row.id)) {
+        if (overwrite) toUpdate.push(row);
+        else { skipped++; }
+      } else {
+        toInsert.push(row);
+      }
+    }
+
+    // 2) 新規追加：properties に挿入し、テンプレートからタスクを生成
+    if (toInsert.length > 0) {
+      const propertyInserts = toInsert.map(r => ({
+        id: r.id,
+        name: r.name ?? `(物件 ${r.id})`,
+        sale_price: r.salePrice ?? null,
+        sale_start_date: r.saleStartDate ?? null,
+        contract_date: r.contractDate ?? null,
+        sale_price_updated_at: r.salePrice != null ? now : null,
+      }));
+      const { error: insertError } = await supabase.from('properties').insert(propertyInserts);
+      if (insertError) {
+        errors.push(`新規追加に失敗: ${insertError.message}`);
+      } else {
+        added = toInsert.length;
+        // テンプレートからタスクを生成
+        const { data: templates } = await supabase
+          .from('task_templates')
+          .select('*')
+          .order('order_index');
+        if (templates && templates.length > 0) {
+          const taskInserts = toInsert.flatMap(r =>
+            templates.map((t, i) => ({
+              id: uuid(),
+              property_id: r.id,
+              name: t.name,
+              color: t.color,
+              start_date: null,
+              end_date: null,
+              order_index: i,
+            }))
+          );
+          const { error: tErr } = await supabase.from('tasks').insert(taskInserts);
+          if (tErr) errors.push(`タスク生成に失敗: ${tErr.message}`);
+        }
+      }
+    }
+
+    // 3) 上書き：物件名・販売価格・販売開始日・契約日を更新
+    for (const row of toUpdate) {
+      const current = properties.find(p => p.id === row.id);
+      const dbUpdates: Record<string, unknown> = {
+        updated_at: now,
+      };
+      if (row.name !== undefined)            dbUpdates.name             = row.name;
+      if (row.salePrice !== undefined)       dbUpdates.sale_price       = row.salePrice;
+      if (row.saleStartDate !== undefined)   dbUpdates.sale_start_date  = row.saleStartDate;
+      if (row.contractDate !== undefined)    dbUpdates.contract_date    = row.contractDate;
+      // 価格が実際に変わるときだけ価格変更日を更新
+      if (row.salePrice !== undefined && (current?.salePrice ?? null) !== (row.salePrice ?? null)) {
+        dbUpdates.sale_price_updated_at = now;
+      }
+      const { error: uErr } = await supabase.from('properties').update(dbUpdates).eq('id', row.id);
+      if (uErr) {
+        errors.push(`${row.id} 更新失敗: ${uErr.message}`);
+      } else {
+        updated++;
+      }
+    }
+
+    await load();
+    return { added, updated, skipped, errors };
   }
 
   async function deleteProperty(propertyId: string) {
@@ -528,5 +652,6 @@ export function useProperties(userId: string | undefined) {
     setTaskHidden, showAllTasks,
     syncWithTemplates,
     updateSalesInfo,
+    importPropertiesFromCSV,
   };
 }

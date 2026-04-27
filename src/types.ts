@@ -53,6 +53,7 @@ export interface Property {
   saleStartDate?: string | null;  // YYYY-MM-DD
   contractDate?: string | null;   // YYYY-MM-DD
   pricePending?: boolean;
+  salePriceUpdatedAt?: string | null;  // ISO timestamp - 販売価格が変わった日時
 }
 
 export interface TaskTemplate {

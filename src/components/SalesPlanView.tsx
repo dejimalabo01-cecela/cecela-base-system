@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPen, faSearch, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faPen, faSearch, faXmark, faFileImport } from '@fortawesome/free-solid-svg-icons';
 import type { Property, PropertyStatus } from '../types';
 import type { Role } from '../hooks/useRole';
 import { parseDate } from '../utils/dateUtils';
@@ -47,9 +47,10 @@ interface Props {
   properties: Property[];
   role: Role;
   onEdit: (propertyId: string) => void;
+  onImportCsv: () => void;
 }
 
-export function SalesPlanView({ properties, role, onEdit }: Props) {
+export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) {
   const canEdit = role === 'admin' || role === 'editor';
   const [fy, setFy] = useState<number>(() => fiscalYearOf(new Date()));
   const [search, setSearch] = useState('');
@@ -132,6 +133,16 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {canEdit && (
+              <button
+                onClick={onImportCsv}
+                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-3 py-2 transition"
+                title="CSVファイルから物件データをインポート"
+              >
+                <FontAwesomeIcon icon={faFileImport} />
+                <span className="hidden sm:inline">CSVインポート</span>
+              </button>
+            )}
             <button
               onClick={() => setFy(fy - 1)}
               className="text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 hover:border-gray-400 transition"
@@ -213,8 +224,16 @@ export function SalesPlanView({ properties, role, onEdit }: Props) {
                     <span className="text-[10px] text-gray-400">―</span>
                   )}
                 </div>
-                <div className={`w-24 px-2 text-[11px] font-mono text-right truncate border-r border-gray-200 dark:border-gray-700 ${p.pricePending ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
-                  {p.salePrice ? formatYen(p.salePrice) : '―'}
+                <div className={`w-24 px-2 border-r border-gray-200 dark:border-gray-700 flex flex-col justify-center text-right ${p.pricePending ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
+                  <span className="text-[11px] font-mono truncate">{p.salePrice ? formatYen(p.salePrice) : '―'}</span>
+                  {p.salePriceUpdatedAt && (
+                    <span
+                      className="text-[9px] text-blue-500 truncate"
+                      title={`価格変更日: ${new Date(p.salePriceUpdatedAt).toLocaleString('ja-JP')}`}
+                    >
+                      📍 {new Date(p.salePriceUpdatedAt).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' })}
+                    </span>
+                  )}
                 </div>
               </div>
               );
