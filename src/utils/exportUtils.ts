@@ -271,13 +271,82 @@ export function exportSalesPlanToCSV(properties: Property[], members: Member[], 
   downloadCSV(rows, filename);
 }
 
+// 販売計画用：1物件×月のセル（加工期間 = 青、販売開始月 = オレンジ＋価格、未確定 = 黄）
+function buildSalesGanttCells(p: Property, months: Date[]): { v: string | number; s?: object }[] {
+  const tasks = p.tasks.filter(t => !t.hidden);
+  const allTimes: number[] = [];
+  for (const t of tasks) {
+    if (t.startDate) allTimes.push(new Date(t.startDate).getTime());
+    if (t.endDate)   allTimes.push(new Date(t.endDate).getTime());
+  }
+  const procStart = allTimes.length ? new Date(Math.min(...allTimes)) : null;
+  const procEnd   = allTimes.length ? new Date(Math.max(...allTimes)) : null;
+
+  // 販売タスクのstartDate を優先、なければ property.saleStartDate
+  const saleTask = tasks.find(t => t.name.includes('販売'));
+  const saleStartStr = saleTask?.startDate ?? p.saleStartDate ?? null;
+  const saleStart = saleStartStr ? new Date(saleStartStr) : null;
+
+  const PROC_FILL = 'BFDBFE';     // 加工期間（blue-200）
+  const SALE_FILL = 'FDBA74';     // 販売開始月（orange-300）
+  const PENDING_FILL = 'FDE68A';  // 価格未確定（yellow-200）
+
+  return months.map(m => {
+    const ms = new Date(m.getFullYear(), m.getMonth(), 1).getTime();
+    const me = new Date(m.getFullYear(), m.getMonth() + 1, 0, 23, 59, 59).getTime();
+
+    const isSaleMonth = saleStart &&
+      saleStart.getFullYear() === m.getFullYear() &&
+      saleStart.getMonth() === m.getMonth();
+
+    if (isSaleMonth) {
+      const fillColor = p.pricePending ? PENDING_FILL : SALE_FILL;
+      if (p.salePrice != null) {
+        return {
+          v: p.salePrice,
+          s: {
+            fill: { patternType: 'solid', fgColor: { rgb: fillColor } },
+            font: { sz: 9, bold: true, color: { rgb: '111827' } },
+            alignment: { horizontal: 'right', vertical: 'center' },
+            numFmt: '#,##0',
+          },
+        };
+      }
+      return {
+        v: '販売',
+        s: {
+          fill: { patternType: 'solid', fgColor: { rgb: fillColor } },
+          font: { sz: 9, bold: true, color: { rgb: '111827' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
+      };
+    }
+
+    const inProc = procStart && procEnd && procStart.getTime() <= me && procEnd.getTime() >= ms;
+    if (inProc) {
+      return {
+        v: '',
+        s: { fill: { patternType: 'solid', fgColor: { rgb: PROC_FILL } } },
+      };
+    }
+    return { v: '' };
+  });
+}
+
 export function exportSalesPlanToExcel(properties: Property[], members: Member[], filename: string) {
   const wb = XLSX.utils.book_new();
+  const months = buildMonthList(properties);
 
   const HEADER_S = {
     font: { bold: true, sz: 10, color: { rgb: '374151' } },
     fill: { patternType: 'solid', fgColor: { rgb: 'F3F4F6' } },
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: { bottom: { style: 'thin', color: { rgb: 'D1D5DB' } } },
+  };
+  const MONTH_HEADER_S = {
+    font: { bold: true, sz: 9, color: { rgb: '374151' } },
+    fill: { patternType: 'solid', fgColor: { rgb: 'F3F4F6' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
     border: { bottom: { style: 'thin', color: { rgb: 'D1D5DB' } } },
   };
   const CELL_S = { font: { sz: 10 }, alignment: { vertical: 'center' } };
@@ -287,13 +356,25 @@ export function exportSalesPlanToExcel(properties: Property[], members: Member[]
   const numericCols = new Set([5, 6, 7, 8, 9]); // 原価〜販売価格
   const dateCols    = new Set([11, 12, 13, 14]); // 販売開始日, 契約日, 価格変更日, 登録日
 
-  const aoa: { v: string | number; s?: object }[][] = [
-    [...SALES_HEADERS].map(h => ({ v: h, s: HEADER_S })),
-    ...properties.map(p => buildSalesRow(p, members).map((val, i) => {
-      if (numericCols.has(i) && val !== '') return { v: parseInt(val, 10), s: NUM_S };
-      if (dateCols.has(i)) return { v: val, s: DATE_S };
-      return { v: val, s: CELL_S };
+  const headerRow = [
+    ...[...SALES_HEADERS].map(h => ({ v: h, s: HEADER_S })),
+    ...months.map(m => ({
+      v: `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, '0')}`,
+      s: MONTH_HEADER_S,
     })),
+  ];
+
+  const aoa: { v: string | number; s?: object }[][] = [
+    headerRow,
+    ...properties.map(p => {
+      const fields = buildSalesRow(p, members).map((val, i) => {
+        if (numericCols.has(i) && val !== '') return { v: parseInt(val, 10), s: NUM_S };
+        if (dateCols.has(i)) return { v: val, s: DATE_S };
+        return { v: val, s: CELL_S };
+      });
+      const gantt = buildSalesGanttCells(p, months);
+      return [...fields, ...gantt];
+    }),
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(aoa as never);
@@ -302,6 +383,7 @@ export function exportSalesPlanToExcel(properties: Property[], members: Member[]
     { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
     { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 },
     { wch: 18 }, { wch: 13 },
+    ...months.map(() => ({ wch: 11 })),
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, '販売計画');

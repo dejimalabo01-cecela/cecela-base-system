@@ -4,7 +4,8 @@ import {
   faPen, faSearch, faXmark, faFileImport, faTrash, faCopy,
   faFileExcel, faDownload, faChevronDown,
 } from '@fortawesome/free-solid-svg-icons';
-import type { Property, PropertyStatus } from '../types';
+import type { Property, PropertyStatus, PropertyType } from '../types';
+import { PROPERTY_STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from '../types';
 import type { Role } from '../hooks/useRole';
 import { parseDate } from '../utils/dateUtils';
 import { getSaleStartDate } from '../utils/salesHelpers';
@@ -70,6 +71,8 @@ export function SalesPlanView({
   const todayFy = useMemo(() => fiscalYearOf(new Date()), []);
   const [fy, setFy] = useState<number>(todayFy);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<PropertyStatus | ''>('');
+  const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [pageSize, setPageSize] = useState<number>(10);
@@ -170,6 +173,8 @@ export function SalesPlanView({
     const q = search.trim().toLowerCase();
     return properties.filter(p => {
       if (q && !(p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))) return false;
+      if (statusFilter && p.status !== statusFilter) return false;
+      if (typeFilter && p.propertyType !== typeFilter) return false;
       const { start, end } = taskRange(p);
       const sale = parseDate(getSaleStartDate(p));
       const contract = parseDate(p.contractDate ?? null);
@@ -183,7 +188,7 @@ export function SalesPlanView({
       if (!hasAnyDate) return fy === todayFy;
       return rangeOverlap || inFY(sale) || inFY(contract);
     });
-  }, [properties, fy, todayFy, fyRange, search]);
+  }, [properties, fy, todayFy, fyRange, search, statusFilter, typeFilter]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -200,8 +205,8 @@ export function SalesPlanView({
     return arr;
   }, [filtered, sortKey, sortDir]);
 
-  // 検索や並び順、FY、ページサイズが変わったらページを1に戻す
-  useEffect(() => { setPage(1); }, [search, sortKey, sortDir, fy, pageSize]);
+  // 検索や並び順、FY、絞り込み、ページサイズが変わったらページを1に戻す
+  useEffect(() => { setPage(1); }, [search, sortKey, sortDir, fy, pageSize, statusFilter, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -397,23 +402,55 @@ export function SalesPlanView({
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-md">
-          <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="物件名・物件IDで検索"
-            className="w-full pl-9 pr-9 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-          />
-          {search && (
+        {/* Search & filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative max-w-xs flex-1 min-w-[180px]">
+            <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="物件名・物件IDで検索"
+              className="w-full pl-9 pr-9 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+                title="クリア"
+              >
+                <FontAwesomeIcon icon={faXmark} className="text-xs" />
+              </button>
+            )}
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as PropertyStatus | '')}
+            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="契約ステータスで絞り込み"
+          >
+            <option value="">ステータス：すべて</option>
+            {PROPERTY_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value as PropertyType | '')}
+            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="物件種別で絞り込み"
+          >
+            <option value="">種別：すべて</option>
+            {PROPERTY_TYPE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+
+          {(statusFilter || typeFilter) && (
             <button
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
-              title="クリア"
+              onClick={() => { setStatusFilter(''); setTypeFilter(''); }}
+              className="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 rounded-lg px-3 py-2 transition"
+              title="絞り込みをクリア"
             >
-              <FontAwesomeIcon icon={faXmark} className="text-xs" />
+              絞り込み解除
             </button>
           )}
         </div>
