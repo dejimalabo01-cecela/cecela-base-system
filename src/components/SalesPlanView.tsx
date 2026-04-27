@@ -52,7 +52,8 @@ interface Props {
 
 export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) {
   const canEdit = role === 'admin' || role === 'editor';
-  const [fy, setFy] = useState<number>(() => fiscalYearOf(new Date()));
+  const todayFy = useMemo(() => fiscalYearOf(new Date()), []);
+  const [fy, setFy] = useState<number>(todayFy);
   const [search, setSearch] = useState('');
 
   const months = useMemo(() => buildMonths(fy), [fy]);
@@ -76,6 +77,7 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
 
   // FY に関係する物件だけ：工程期間が FY に重なる or 販売開始/契約日が FY 範囲内
   // ただし契約日が表示FYより前の年度なら除外（前期以前に契約済のものは次年度以降には載らない）
+  // 日付が一切無い物件は「未スケジュール」として今期に表示する。
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return properties.filter(p => {
@@ -88,9 +90,12 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
       const inFY = (d: Date | null) =>
         !!d && d.getTime() >= fyRange.start.getTime() && d.getTime() <= fyRange.end.getTime();
       const rangeOverlap = start && end && start <= fyRange.end && end >= fyRange.start;
+      // 日付が一切無い物件は今期のみ表示（拾いこぼし防止）
+      const hasAnyDate = !!start || !!end || !!sale || !!contract;
+      if (!hasAnyDate) return fy === todayFy;
       return rangeOverlap || inFY(sale) || inFY(contract);
     });
-  }, [properties, fyRange, search]);
+  }, [properties, fy, todayFy, fyRange, search]);
 
   function cellForTaskRange(
     range: { start: Date | null; end: Date | null },
