@@ -225,6 +225,89 @@ export function exportPropertyToCSV(property: Property, members: Member[]) {
   downloadCSV(rows, `${property.id}_${property.name}.csv`);
 }
 
+// ===== 販売計画用エクスポート =====
+// 物件1行 = 1レコードのフラットな出力。販売計画モジュールで使う項目をまとめる。
+
+const SALES_HEADERS = [
+  '物件ID', '物件名', '担当者', '物件種別', '契約ステータス',
+  '原価', '借入', '原価×15%', '差額(自己資金)',
+  '販売価格', '価格未確定', '販売開始日', '契約日',
+  '価格変更日', '登録日',
+] as const;
+
+function fmtPrice(n: number | null | undefined): string {
+  return n != null ? String(n) : '';
+}
+
+function buildSalesRow(p: Property, members: Member[]): string[] {
+  const assignee = getAssigneeName(p, members);
+  const buffer = p.cost != null ? Math.round(p.cost * 0.15) : null;
+  const ownFund = p.cost != null && p.loan != null ? p.cost - p.loan : null;
+  const priceUpdated = p.salePriceUpdatedAt ? new Date(p.salePriceUpdatedAt).toLocaleString('ja-JP') : '';
+  return [
+    p.id,
+    p.name,
+    assignee,
+    p.propertyType ?? '',
+    p.status ?? '',
+    fmtPrice(p.cost),
+    fmtPrice(p.loan),
+    fmtPrice(buffer),
+    fmtPrice(ownFund),
+    fmtPrice(p.salePrice),
+    p.pricePending ? '○' : '',
+    p.saleStartDate ?? '',
+    p.contractDate ?? '',
+    priceUpdated,
+    new Date(p.createdAt).toLocaleDateString('ja-JP'),
+  ];
+}
+
+export function exportSalesPlanToCSV(properties: Property[], members: Member[], filename: string) {
+  const rows: string[][] = [
+    [...SALES_HEADERS],
+    ...properties.map(p => buildSalesRow(p, members)),
+  ];
+  downloadCSV(rows, filename);
+}
+
+export function exportSalesPlanToExcel(properties: Property[], members: Member[], filename: string) {
+  const wb = XLSX.utils.book_new();
+
+  const HEADER_S = {
+    font: { bold: true, sz: 10, color: { rgb: '374151' } },
+    fill: { patternType: 'solid', fgColor: { rgb: 'F3F4F6' } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: { bottom: { style: 'thin', color: { rgb: 'D1D5DB' } } },
+  };
+  const CELL_S = { font: { sz: 10 }, alignment: { vertical: 'center' } };
+  const NUM_S  = { font: { sz: 10 }, alignment: { horizontal: 'right', vertical: 'center' }, numFmt: '#,##0' };
+  const DATE_S = { font: { sz: 10 }, alignment: { horizontal: 'center', vertical: 'center' } };
+
+  const numericCols = new Set([5, 6, 7, 8, 9]); // 原価〜販売価格
+  const dateCols    = new Set([11, 12, 13, 14]); // 販売開始日, 契約日, 価格変更日, 登録日
+
+  const aoa: { v: string | number; s?: object }[][] = [
+    [...SALES_HEADERS].map(h => ({ v: h, s: HEADER_S })),
+    ...properties.map(p => buildSalesRow(p, members).map((val, i) => {
+      if (numericCols.has(i) && val !== '') return { v: parseInt(val, 10), s: NUM_S };
+      if (dateCols.has(i)) return { v: val, s: DATE_S };
+      return { v: val, s: CELL_S };
+    })),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa as never);
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+    { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 },
+    { wch: 18 }, { wch: 13 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, '販売計画');
+  XLSX.writeFile(wb, filename);
+}
+
 function downloadCSV(rows: string[][], filename: string) {
   const csv = '\uFEFF' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

@@ -141,9 +141,12 @@ export default function App() {
       return (
         <SalesPlanView
           properties={properties}
+          members={members}
           role={role}
           onEdit={setSalesPlanEditId}
           onImportCsv={() => setShowCsvImport(true)}
+          onDeleteMany={deleteProperties}
+          onCopyMany={copyProperties}
         />
       );
     }

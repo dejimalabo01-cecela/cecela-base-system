@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPen, faSearch, faXmark, faFileImport } from '@fortawesome/free-solid-svg-icons';
+import {
+  faPen, faSearch, faXmark, faFileImport, faTrash, faCopy,
+  faFileExcel, faDownload, faChevronDown,
+} from '@fortawesome/free-solid-svg-icons';
 import type { Property, PropertyStatus } from '../types';
 import type { Role } from '../hooks/useRole';
 import { parseDate } from '../utils/dateUtils';
 import { getSaleStartDate } from '../utils/salesHelpers';
 import { Pagination, SortHeader } from './Pagination';
+import { exportSalesPlanToCSV, exportSalesPlanToExcel } from '../utils/exportUtils';
 
 type SortKey = 'id' | 'name' | 'type' | 'status' | 'price';
 type SortDir = 'asc' | 'desc';
@@ -50,12 +54,18 @@ function STATUS_COLOR(s: PropertyStatus | null | undefined): string {
 interface Props {
   properties: Property[];
   role: Role;
+  members: import('../types').Member[];
   onEdit: (propertyId: string) => void;
   onImportCsv: () => void;
+  onDeleteMany: (ids: string[]) => Promise<void>;
+  onCopyMany: (ids: string[], copyDates: boolean) => Promise<number>;
 }
 
-export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) {
+export function SalesPlanView({
+  properties, role, members, onEdit, onImportCsv, onDeleteMany, onCopyMany,
+}: Props) {
   const canEdit = role === 'admin' || role === 'editor';
+  const isAdmin = role === 'admin';
   const todayFy = useMemo(() => fiscalYearOf(new Date()), []);
   const [fy, setFy] = useState<number>(todayFy);
   const [search, setSearch] = useState('');
@@ -63,6 +73,10 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [pageSize, setPageSize] = useState<number>(10);
   const [page, setPage] = useState<number>(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -71,6 +85,60 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
       setSortKey(key);
       setSortDir('asc');
     }
+  }
+
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() { setSelected(new Set()); }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(`選択した ${ids.length} 件を削除します。この操作は取り消せません。`)) return;
+    setDeleting(true);
+    try {
+      await onDeleteMany(ids);
+      clearSelection();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleBulkCopy() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(`選択した ${ids.length} 件を複製します。\n物件名は「○○_コピー」、工程・担当者・日付・販売情報すべて引き継ぎます。`)) return;
+    setCopying(true);
+    try {
+      await onCopyMany(ids, true);
+      clearSelection();
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  type ExportScope = 'all' | 'fy' | 'selected';
+  type ExportFormat = 'csv' | 'excel';
+
+  function doExport(scope: ExportScope, format: ExportFormat) {
+    setExportMenuOpen(false);
+    let target: Property[] = [];
+    let suffix = '';
+    if (scope === 'all') { target = properties; suffix = '全件'; }
+    else if (scope === 'fy') { target = filtered; suffix = `FY${fy}`; }
+    else { target = properties.filter(p => selected.has(p.id)); suffix = `選択${target.length}件`; }
+    if (target.length === 0) return;
+    const ext = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `cecela_販売計画_${suffix}.${ext}`;
+    if (format === 'csv') exportSalesPlanToCSV(target, members, filename);
+    else exportSalesPlanToExcel(target, members, filename);
   }
 
   const months = useMemo(() => buildMonths(fy), [fy]);
@@ -139,6 +207,18 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
     [sorted, safePage, pageSize],
   );
 
+  const visibleSelectedCount = pageRows.filter(p => selected.has(p.id)).length;
+  const allVisibleChecked = pageRows.length > 0 && visibleSelectedCount === pageRows.length;
+  const someVisibleChecked = visibleSelectedCount > 0 && !allVisibleChecked;
+  function toggleAllVisible() {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allVisibleChecked) pageRows.forEach(p => next.delete(p.id));
+      else pageRows.forEach(p => next.add(p.id));
+      return next;
+    });
+  }
+
   function cellForTaskRange(
     range: { start: Date | null; end: Date | null },
     month: { year: number; month: number },
@@ -154,7 +234,7 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
     return saleStart.getFullYear() === month.year && saleStart.getMonth() === month.month;
   }
 
-  // 月別の販売価格合計
+  // 月別の販売価格合計（販売開始月で集計）
   const monthlyTotals = useMemo(() => {
     return months.map(m => {
       return filtered.reduce((sum, p) => {
@@ -165,8 +245,20 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
       }, 0);
     });
   }, [filtered, months]);
-
   const totalSum = monthlyTotals.reduce((a, b) => a + b, 0);
+
+  // 月別の契約金額合計（契約日月で集計、契約済の物件のみ）
+  const contractMonthlyTotals = useMemo(() => {
+    return months.map(m => {
+      return filtered.reduce((sum, p) => {
+        const c = parseDate(p.contractDate ?? null);
+        if (!c || !p.salePrice) return sum;
+        if (c.getFullYear() === m.year && c.getMonth() === m.month) return sum + p.salePrice;
+        return sum;
+      }, 0);
+    });
+  }, [filtered, months]);
+  const contractTotalSum = contractMonthlyTotals.reduce((a, b) => a + b, 0);
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
@@ -176,35 +268,118 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
           <div>
             <h1 className="text-lg md:text-xl font-bold text-gray-800 dark:text-gray-100">販売計画</h1>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              FY{fy}（{fy}/4 〜 {fy + 1}/3）· 対象 {filtered.length} 件 / 合計 {formatYen(totalSum)} 円
+              FY{fy}（{fy}/4 〜 {fy + 1}/3）· 対象 {filtered.length} 件
+              {selected.size > 0 && ` · 選択 ${selected.size} 件`}
+            </p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+              販売価格合計 <span className="font-mono text-gray-700 dark:text-gray-200">{formatYen(totalSum) || '0'}</span>
+              <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+              契約金額合計 <span className="font-mono text-gray-700 dark:text-gray-200">{formatYen(contractTotalSum) || '0'}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* 一括アクション（選択中のみ表示） */}
+            {canEdit && selected.size > 0 && (
+              <button
+                onClick={handleBulkCopy}
+                disabled={copying}
+                className="flex items-center gap-1.5 text-xs md:text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-3 py-2 transition disabled:opacity-40"
+                title="選択した物件を複製"
+              >
+                <FontAwesomeIcon icon={faCopy} />
+                <span>{copying ? '複製中…' : `複製（${selected.size}）`}</span>
+              </button>
+            )}
+            {isAdmin && selected.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 text-xs md:text-sm text-red-600 hover:text-red-700 border border-red-300 dark:border-red-700 hover:border-red-500 rounded-lg px-3 py-2 transition disabled:opacity-40"
+                title="選択した物件を削除"
+              >
+                <FontAwesomeIcon icon={faTrash} />
+                <span>{deleting ? '削除中…' : `削除（${selected.size}）`}</span>
+              </button>
+            )}
+
+            {/* エクスポート ドロップダウン */}
+            <div className="relative">
+              <button
+                onClick={() => setExportMenuOpen(v => !v)}
+                className="flex items-center gap-1.5 text-xs md:text-sm text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:border-gray-400 rounded-lg px-3 py-2 transition"
+              >
+                <FontAwesomeIcon icon={faDownload} />
+                <span>エクスポート</span>
+                <FontAwesomeIcon icon={faChevronDown} className="text-[10px]" />
+              </button>
+              {exportMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setExportMenuOpen(false)} aria-hidden="true" />
+                  <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-40 py-1 text-xs">
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">全件 ({properties.length})</div>
+                    <button onClick={() => doExport('all', 'excel')} className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faFileExcel} className="text-green-600" /> Excel
+                    </button>
+                    <button onClick={() => doExport('all', 'csv')} className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faDownload} /> CSV
+                    </button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">FY{fy} ({filtered.length})</div>
+                    <button onClick={() => doExport('fy', 'excel')} className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faFileExcel} className="text-green-600" /> Excel
+                    </button>
+                    <button onClick={() => doExport('fy', 'csv')} className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faDownload} /> CSV
+                    </button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">選択中 ({selected.size})</div>
+                    <button
+                      onClick={() => doExport('selected', 'excel')}
+                      disabled={selected.size === 0}
+                      className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <FontAwesomeIcon icon={faFileExcel} className="text-green-600" /> Excel
+                    </button>
+                    <button
+                      onClick={() => doExport('selected', 'csv')}
+                      disabled={selected.size === 0}
+                      className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <FontAwesomeIcon icon={faDownload} /> CSV
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             {canEdit && (
               <button
                 onClick={onImportCsv}
-                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-3 py-2 transition"
+                className="flex items-center gap-1.5 text-xs md:text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-3 py-2 transition"
                 title="CSVファイルから物件データをインポート"
               >
                 <FontAwesomeIcon icon={faFileImport} />
                 <span className="hidden sm:inline">CSVインポート</span>
               </button>
             )}
-            <button
-              onClick={() => setFy(fy - 1)}
-              className="text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 hover:border-gray-400 transition"
-            >
-              ◀ {fy - 1}
-            </button>
-            <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 px-2">
-              FY{fy}
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setFy(fy - 1)}
+                className="text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 hover:border-gray-400 transition"
+              >
+                ◀ {fy - 1}
+              </button>
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 px-2">
+                FY{fy}
+              </div>
+              <button
+                onClick={() => setFy(fy + 1)}
+                className="text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 hover:border-gray-400 transition"
+              >
+                {fy + 1} ▶
+              </button>
             </div>
-            <button
-              onClick={() => setFy(fy + 1)}
-              className="text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 hover:border-gray-400 transition"
-            >
-              {fy + 1} ▶
-            </button>
           </div>
         </div>
 
@@ -236,6 +411,16 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
           {/* Left: property info */}
           <div className="sticky left-0 z-20 bg-white dark:bg-gray-800 shrink-0 shadow-[2px_0_6px_rgba(0,0,0,0.08)]">
             <div className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex h-16">
+              <div className="w-10 px-1 py-2 border-r border-gray-200 dark:border-gray-700 flex items-end justify-center">
+                <input
+                  type="checkbox"
+                  checked={allVisibleChecked}
+                  ref={el => { if (el) el.indeterminate = someVisibleChecked; }}
+                  onChange={toggleAllVisible}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  aria-label="ページ内 全件選択"
+                />
+              </div>
               <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
                 <SortHeader label="ID" active={sortKey === 'id'} dir={sortDir} onClick={() => toggleSort('id')} />
               </div>
@@ -254,14 +439,24 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
             </div>
             {pageRows.map(p => {
               const signed = p.status === '契約済';
+              const isChecked = selected.has(p.id);
               return (
               <div
                 key={p.id}
                 className={`flex items-center border-b border-gray-100 dark:border-gray-700 h-11 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer group ${
-                  signed ? 'bg-gray-200/60 dark:bg-gray-700/40' : ''
+                  isChecked ? 'bg-blue-50/80 dark:bg-blue-900/30' : signed ? 'bg-gray-200/60 dark:bg-gray-700/40' : ''
                 }`}
                 onClick={() => canEdit && onEdit(p.id)}
               >
+                <div className="w-10 px-1 border-r border-gray-200 dark:border-gray-700 flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOne(p.id)}
+                    className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    aria-label={`${p.name} を選択`}
+                  />
+                </div>
                 <div className="w-24 px-2 text-[10px] font-mono text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700">
                   {p.id}
                 </div>
@@ -295,14 +490,26 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
               </div>
               );
             })}
-            {/* totals row */}
-            <div className="flex items-center border-b-2 border-gray-300 dark:border-gray-600 h-10 bg-gray-50 dark:bg-gray-900/70">
+            {/* totals row 1: 販売価格 */}
+            <div className="flex items-center border-b border-gray-200 dark:border-gray-700 h-10 bg-gray-50 dark:bg-gray-900/70">
+              <div className="w-10 border-r border-gray-200 dark:border-gray-700" />
               <div className="w-24 px-2 text-[10px] font-mono text-gray-500 border-r border-gray-200 dark:border-gray-700">合計</div>
-              <div className="w-56 px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">月別 販売価格合計</div>
+              <div className="w-56 px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">販売価格 合計（月＝販売開始月）</div>
               <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
               <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
               <div className="w-24 px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200">
                 {formatYen(totalSum)}
+              </div>
+            </div>
+            {/* totals row 2: 契約金額 */}
+            <div className="flex items-center border-b-2 border-gray-300 dark:border-gray-600 h-10 bg-blue-50/40 dark:bg-blue-900/20">
+              <div className="w-10 border-r border-gray-200 dark:border-gray-700" />
+              <div className="w-24 px-2 text-[10px] font-mono text-blue-600 dark:text-blue-300 border-r border-gray-200 dark:border-gray-700">契約合計</div>
+              <div className="w-56 px-3 text-xs font-semibold text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">契約金額 合計（月＝契約日）</div>
+              <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
+              <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
+              <div className="w-24 px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-blue-700 dark:text-blue-200">
+                {formatYen(contractTotalSum)}
               </div>
             </div>
           </div>
@@ -367,13 +574,25 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
                 </div>
               );
             })}
-            {/* Totals row */}
-            <div className="flex border-b-2 border-gray-300 dark:border-gray-600 h-10 items-center bg-gray-50 dark:bg-gray-900/70">
+            {/* Totals row 1: 販売価格 月別 */}
+            <div className="flex border-b border-gray-200 dark:border-gray-700 h-10 items-center bg-gray-50 dark:bg-gray-900/70">
               {monthlyTotals.map((t, i) => (
                 <div
                   key={i}
                   style={{ width: MONTH_CELL_W }}
                   className="text-center text-[10px] font-mono text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700"
+                >
+                  {t > 0 ? formatYen(t) : ''}
+                </div>
+              ))}
+            </div>
+            {/* Totals row 2: 契約金額 月別 */}
+            <div className="flex border-b-2 border-gray-300 dark:border-gray-600 h-10 items-center bg-blue-50/40 dark:bg-blue-900/20">
+              {contractMonthlyTotals.map((t, i) => (
+                <div
+                  key={i}
+                  style={{ width: MONTH_CELL_W }}
+                  className="text-center text-[10px] font-mono text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700"
                 >
                   {t > 0 ? formatYen(t) : ''}
                 </div>
