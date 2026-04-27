@@ -53,14 +53,14 @@ const MODULES: {
     icon: faBuilding,
   },
   {
-    id: 'sales-management',
-    label: '販売管理',
-    icon: faTags,
-  },
-  {
     id: 'sales-plan',
     label: '販売計画',
     icon: faMoneyBillTrendUp,
+  },
+  {
+    id: 'sales-management',
+    label: '販売管理',
+    icon: faTags,
   },
   {
     id: 'marketing',
