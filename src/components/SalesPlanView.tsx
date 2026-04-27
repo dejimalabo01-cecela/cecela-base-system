@@ -1,10 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPen, faSearch, faXmark, faFileImport } from '@fortawesome/free-solid-svg-icons';
 import type { Property, PropertyStatus } from '../types';
 import type { Role } from '../hooks/useRole';
 import { parseDate } from '../utils/dateUtils';
 import { getSaleStartDate } from '../utils/salesHelpers';
+import { Pagination, SortHeader } from './Pagination';
+
+type SortKey = 'id' | 'name' | 'type' | 'status' | 'price';
+type SortDir = 'asc' | 'desc';
 
 const MONTH_CELL_W = 52;
 const FY_MONTH_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2]; // Apr..Mar
@@ -55,6 +59,19 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
   const todayFy = useMemo(() => fiscalYearOf(new Date()), []);
   const [fy, setFy] = useState<number>(todayFy);
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('id');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [page, setPage] = useState<number>(1);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   const months = useMemo(() => buildMonths(fy), [fy]);
 
@@ -96,6 +113,31 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
       return rangeOverlap || inFY(sale) || inFY(contract);
     });
   }, [properties, fy, todayFy, fyRange, search]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      switch (sortKey) {
+        case 'id':     return a.id.localeCompare(b.id, 'ja') * dir;
+        case 'name':   return a.name.localeCompare(b.name, 'ja') * dir;
+        case 'type':   return ((a.propertyType ?? '\uFFFF').localeCompare(b.propertyType ?? '\uFFFF', 'ja')) * dir;
+        case 'status': return ((a.status ?? '\uFFFF').localeCompare(b.status ?? '\uFFFF', 'ja')) * dir;
+        case 'price':  return ((a.salePrice ?? -Infinity) - (b.salePrice ?? -Infinity)) * dir;
+      }
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
+
+  // 検索や並び順、FY、ページサイズが変わったらページを1に戻す
+  useEffect(() => { setPage(1); }, [search, sortKey, sortDir, fy, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageRows = useMemo(
+    () => sorted.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [sorted, safePage, pageSize],
+  );
 
   function cellForTaskRange(
     range: { start: Date | null; end: Date | null },
@@ -194,13 +236,23 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
           {/* Left: property info */}
           <div className="sticky left-0 z-20 bg-white dark:bg-gray-800 shrink-0 shadow-[2px_0_6px_rgba(0,0,0,0.08)]">
             <div className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex h-16">
-              <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">ID</div>
-              <div className="w-56 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">物件名</div>
-              <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">種別</div>
-              <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">ステータス</div>
-              <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end text-right">販売価格</div>
+              <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+                <SortHeader label="ID" active={sortKey === 'id'} dir={sortDir} onClick={() => toggleSort('id')} />
+              </div>
+              <div className="w-56 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+                <SortHeader label="物件名" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+              </div>
+              <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+                <SortHeader label="種別" active={sortKey === 'type'} dir={sortDir} onClick={() => toggleSort('type')} />
+              </div>
+              <div className="w-28 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end">
+                <SortHeader label="ステータス" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
+              </div>
+              <div className="w-24 px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 flex items-end text-right">
+                <SortHeader label="販売価格" active={sortKey === 'price'} dir={sortDir} onClick={() => toggleSort('price')} className="ml-auto" />
+              </div>
             </div>
-            {filtered.map(p => {
+            {pageRows.map(p => {
               const signed = p.status === '契約済';
               return (
               <div
@@ -274,7 +326,7 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
               </div>
               <div className="h-8 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" />
             </div>
-            {filtered.map(p => {
+            {pageRows.map(p => {
               const range = taskRange(p);
               const sale = parseDate(getSaleStartDate(p));
               const signed = p.status === '契約済';
@@ -329,6 +381,17 @@ export function SalesPlanView({ properties, role, onEdit, onImportCsv }: Props) 
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="px-4 md:px-6 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0">
+        <Pagination
+          total={sorted.length}
+          page={safePage}
+          pageSize={pageSize}
+          onChangePage={setPage}
+          onChangePageSize={setPageSize}
+        />
       </div>
 
       {/* Legend */}

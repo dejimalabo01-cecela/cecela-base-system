@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faDownload, faFileExcel, faBuilding, faSearch, faXmark, faTrash, faCopy,
@@ -6,6 +6,10 @@ import {
 import type { Property, Member } from '../types';
 import type { Role } from '../hooks/useRole';
 import { exportAllToExcel, exportAllToCSV } from '../utils/exportUtils';
+import { Pagination, SortHeader } from './Pagination';
+
+type SortKey = 'id' | 'name' | 'assignee' | 'period' | 'progress' | 'createdAt';
+type SortDir = 'asc' | 'desc';
 
 interface Props {
   properties: Property[];
@@ -21,6 +25,10 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [page, setPage] = useState<number>(1);
 
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
@@ -68,12 +76,55 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
     );
   }, [properties, search]);
 
+  // ソート用の比較関数。各カラムの「自然な順序」で比較する
+  function periodMin(p: Property): string {
+    const dates = p.tasks.flatMap(t => [t.startDate, t.endDate]).filter(Boolean) as string[];
+    return dates.length > 0 ? dates.reduce((a, b) => a < b ? a : b) : '';
+  }
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const cmp = (a: Property, b: Property): number => {
+      switch (sortKey) {
+        case 'id':        return a.id.localeCompare(b.id, 'ja') * dir;
+        case 'name':      return a.name.localeCompare(b.name, 'ja') * dir;
+        case 'assignee':  return getAssigneeName(a).localeCompare(getAssigneeName(b), 'ja') * dir;
+        case 'period':    return (periodMin(a) || '\uFFFF').localeCompare(periodMin(b) || '\uFFFF') * dir;
+        case 'progress':  return (getProgress(a) - getProgress(b)) * dir;
+        case 'createdAt': return a.createdAt.localeCompare(b.createdAt) * dir;
+      }
+    };
+    arr.sort(cmp);
+    return arr;
+  }, [filtered, sortKey, sortDir, members]);
+
+  // 検索や並び順が変わったらページを1に戻す
+  useEffect(() => { setPage(1); }, [search, sortKey, sortDir, pageSize]);
+
+  // 現在ページに表示する物件
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageRows = useMemo(
+    () => sorted.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [sorted, safePage, pageSize],
+  );
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
   const selectedList = useMemo(
     () => properties.filter(p => selected.has(p.id)),
     [properties, selected]
   );
-  const visibleSelectedCount = filtered.filter(p => selected.has(p.id)).length;
-  const allVisibleChecked = filtered.length > 0 && visibleSelectedCount === filtered.length;
+  // 「全件選択」はいまページに表示中の行に対して動く
+  const visibleSelectedCount = pageRows.filter(p => selected.has(p.id)).length;
+  const allVisibleChecked = pageRows.length > 0 && visibleSelectedCount === pageRows.length;
   const someVisibleChecked = visibleSelectedCount > 0 && !allVisibleChecked;
 
   function toggleOne(id: string) {
@@ -89,9 +140,9 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
     setSelected(prev => {
       const next = new Set(prev);
       if (allVisibleChecked) {
-        filtered.forEach(p => next.delete(p.id));
+        pageRows.forEach(p => next.delete(p.id));
       } else {
-        filtered.forEach(p => next.add(p.id));
+        pageRows.forEach(p => next.add(p.id));
       }
       return next;
     });
@@ -255,7 +306,7 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
                 />
                 <span className="text-xs text-gray-500 dark:text-gray-400">全件選択</span>
               </div>
-              {filtered.map(p => {
+              {pageRows.map(p => {
                 const progress = getProgress(p);
                 const isChecked = selected.has(p.id);
                 return (
@@ -326,16 +377,28 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
                       aria-label="全件選択"
                     />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-24">物件ID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400">物件名</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">担当者</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-52">期間</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-36">進捗</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">登録日</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-24">
+                    <SortHeader label="物件ID" active={sortKey === 'id'} dir={sortDir} onClick={() => toggleSort('id')} />
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400">
+                    <SortHeader label="物件名" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">
+                    <SortHeader label="担当者" active={sortKey === 'assignee'} dir={sortDir} onClick={() => toggleSort('assignee')} />
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-52">
+                    <SortHeader label="期間" active={sortKey === 'period'} dir={sortDir} onClick={() => toggleSort('period')} />
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-36">
+                    <SortHeader label="進捗" active={sortKey === 'progress'} dir={sortDir} onClick={() => toggleSort('progress')} />
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 w-28">
+                    <SortHeader label="登録日" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p, idx) => {
+                {pageRows.map((p, idx) => {
                   const progress = getProgress(p);
                   const isChecked = selected.has(p.id);
                   return (
@@ -389,6 +452,15 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
               </tbody>
             </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              total={sorted.length}
+              page={safePage}
+              pageSize={pageSize}
+              onChangePage={setPage}
+              onChangePageSize={setPageSize}
+            />
           </>
         )}
       </div>
