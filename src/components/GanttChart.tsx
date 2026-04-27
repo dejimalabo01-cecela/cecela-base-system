@@ -66,15 +66,16 @@ interface TaskLabelRowProps {
   task: Task;
   canEdit: boolean;
   isSaving: boolean;
+  startVal: string;
+  endVal: string;
   onChangeDate: (field: 'startDate' | 'endDate', value: string) => void;
+  onBlurDate: (field: 'startDate' | 'endDate') => void;
   onToggleHidden: () => void;
 }
 
 function SortableTaskLabelRow({
-  task, canEdit, isSaving, onChangeDate, onToggleHidden,
+  task, canEdit, isSaving, startVal, endVal, onChangeDate, onBlurDate, onToggleHidden,
 }: TaskLabelRowProps) {
-  const startVal = task.startDate ?? '';
-  const endVal = task.endDate ?? '';
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !canEdit || task.hidden,
@@ -129,6 +130,7 @@ function SortableTaskLabelRow({
           value={startVal}
           disabled={!canEdit || task.hidden}
           onChange={e => onChangeDate('startDate', e.target.value)}
+          onBlur={() => onBlurDate('startDate')}
           className="w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
         />
       </div>
@@ -139,6 +141,7 @@ function SortableTaskLabelRow({
           min={startVal || undefined}
           disabled={!canEdit || task.hidden}
           onChange={e => onChangeDate('endDate', e.target.value)}
+          onBlur={() => onBlurDate('endDate')}
           className="w-full text-[10px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default"
         />
       </div>
@@ -210,6 +213,9 @@ export function GanttChart({
     onReorderTasks(arrayMove(ids, oldIdx, newIdx));
   }
 
+  // 日付編集のローカルバッファ。onChange でこっちを更新、onBlur で DB 保存。
+  // setProperties 経由のグローバル再描画を毎キーストロークで起こさないので軽い。
+  const [localDates, setLocalDates] = useState<Record<string, { startDate: string; endDate: string }>>({});
   const [saving, setSaving] = useState<string | null>(null);
 
   // Inline property name editing
@@ -217,17 +223,32 @@ export function GanttChart({
   const [nameInput, setNameInput] = useState(property.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => { setLocalDates({}); }, [property.id]);
   useEffect(() => { setNameInput(property.name); }, [property.name]);
   useEffect(() => {
     if (editingName) nameInputRef.current?.focus();
   }, [editingName]);
 
-  // 日付変更：ピックされた瞬間に即保存（旧実装はブラー時保存だったため、
-  // 入力後に他の物件へ切替/タブクローズで未保存になるバグがあった）
-  async function handleDateChange(taskId: string, field: 'startDate' | 'endDate', value: string) {
+  function getLocalDate(taskId: string, field: 'startDate' | 'endDate', fallback: string | null): string {
+    return localDates[taskId]?.[field] ?? fallback ?? '';
+  }
+
+  function handleDateChange(taskId: string, field: 'startDate' | 'endDate', value: string) {
+    setLocalDates(prev => {
+      const cur = prev[taskId] ?? {
+        startDate: property.tasks.find(t => t.id === taskId)?.startDate ?? '',
+        endDate:   property.tasks.find(t => t.id === taskId)?.endDate ?? '',
+      };
+      return { ...prev, [taskId]: { ...cur, [field]: value } };
+    });
+  }
+
+  async function handleDateBlur(taskId: string, field: 'startDate' | 'endDate') {
+    const local = localDates[taskId];
+    if (!local) return;
     const task = property.tasks.find(t => t.id === taskId);
     if (!task) return;
-    const newValue = value || null;
+    const newValue = (local[field] || null) as string | null;
     if (newValue === task[field]) return;
     setSaving(taskId);
     try {
@@ -235,6 +256,12 @@ export function GanttChart({
     } finally {
       setSaving(null);
     }
+    // 保存完了後、ローカルバッファから当該フィールドを除去（次回 task から読む）
+    setLocalDates(prev => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
   }
 
   function commitNameEdit() {
@@ -513,7 +540,10 @@ export function GanttChart({
                     task={task}
                     canEdit={canEdit}
                     isSaving={saving === task.id}
+                    startVal={getLocalDate(task.id, 'startDate', task.startDate)}
+                    endVal={getLocalDate(task.id, 'endDate', task.endDate)}
                     onChangeDate={(field, value) => handleDateChange(task.id, field, value)}
+                    onBlurDate={field => handleDateBlur(task.id, field)}
                     onToggleHidden={() => onSetTaskHidden(task.id, !task.hidden)}
                   />
                 ))}
