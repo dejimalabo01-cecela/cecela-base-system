@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Property, Task, TaskTemplate } from '../types';
+import type { Property, Task, TaskTemplate, PropertyStatus, PropertyType } from '../types';
 import { supabase } from '../lib/supabase';
 
 // CSVから取込む1行ぶんの形。値が undefined のフィールドは「変更しない」、
@@ -7,9 +7,13 @@ import { supabase } from '../lib/supabase';
 export interface ImportPropertyRow {
   id: string;
   name?: string;
+  propertyType?: PropertyType | null;
+  status?: PropertyStatus | null;
   salePrice?: number | null;
+  pricePending?: boolean;
   saleStartDate?: string | null;
   contractDate?: string | null;
+  settlementDate?: string | null;
 }
 
 // 物件IDフォーマット：'001' 〜 '999...' の連番。
@@ -448,9 +452,13 @@ export function useProperties(userId: string | undefined) {
       const propertyInserts = toInsert.map(r => ({
         id: r.id,
         name: r.name ?? `(物件 ${r.id})`,
+        property_type: r.propertyType ?? null,
+        status: r.status ?? null,
         sale_price: r.salePrice ?? null,
+        price_pending: r.pricePending ?? false,
         sale_start_date: r.saleStartDate ?? null,
         contract_date: r.contractDate ?? null,
+        settlement_date: r.settlementDate ?? null,
         sale_price_updated_at: r.salePrice != null ? now : null,
       }));
       const { error: insertError } = await supabase.from('properties').insert(propertyInserts);
@@ -481,16 +489,20 @@ export function useProperties(userId: string | undefined) {
       }
     }
 
-    // 3) 上書き：物件名・販売価格・販売開始日・契約日を更新
+    // 3) 上書き：CSV に含まれる列だけ更新
     for (const row of toUpdate) {
       const current = properties.find(p => p.id === row.id);
       const dbUpdates: Record<string, unknown> = {
         updated_at: now,
       };
       if (row.name !== undefined)            dbUpdates.name             = row.name;
+      if (row.propertyType !== undefined)    dbUpdates.property_type    = row.propertyType;
+      if (row.status !== undefined)          dbUpdates.status           = row.status;
       if (row.salePrice !== undefined)       dbUpdates.sale_price       = row.salePrice;
+      if (row.pricePending !== undefined)    dbUpdates.price_pending    = row.pricePending;
       if (row.saleStartDate !== undefined)   dbUpdates.sale_start_date  = row.saleStartDate;
       if (row.contractDate !== undefined)    dbUpdates.contract_date    = row.contractDate;
+      if (row.settlementDate !== undefined)  dbUpdates.settlement_date  = row.settlementDate;
       // 価格が実際に変わるときだけ価格変更日を更新
       if (row.salePrice !== undefined && (current?.salePrice ?? null) !== (row.salePrice ?? null)) {
         dbUpdates.sale_price_updated_at = now;

@@ -143,8 +143,10 @@ export default function App() {
       return (
         <SalesManagementView
           properties={properties}
+          members={members}
           role={role}
           onSaveSalesInfo={(propertyId, updates) => updateSalesInfo(propertyId, updates, userEmail)}
+          onImportCsv={() => setShowCsvImport(true)}
         />
       );
     }

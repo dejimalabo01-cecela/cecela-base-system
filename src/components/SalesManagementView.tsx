@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faXmark, faClock } from '@fortawesome/free-solid-svg-icons';
-import type { Property, PropertyStatus } from '../types';
-import { PROPERTY_STATUS_OPTIONS } from '../types';
+import {
+  faSearch, faXmark, faClock, faFileImport, faDownload, faChevronDown, faFileExcel,
+} from '@fortawesome/free-solid-svg-icons';
+import type { Property, PropertyStatus, PropertyType, Member } from '../types';
+import { PROPERTY_STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from '../types';
 import type { Role } from '../hooks/useRole';
 import { Pagination, SortHeader } from './Pagination';
 import { ResizeHandle } from './ResizeHandle';
 import { useColumnWidths } from '../hooks/useColumnWidths';
+import { exportSalesPlanToCSV, exportSalesPlanToExcel } from '../utils/exportUtils';
 
 type SortKey = 'id' | 'name' | 'saleStartDate' | 'salePrice' | 'status' | 'contractDate' | 'settlementDate';
 type SortDir = 'asc' | 'desc';
@@ -19,6 +22,7 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
 
 interface Props {
   properties: Property[];
+  members: Member[];
   role: Role;
   onSaveSalesInfo: (
     propertyId: string,
@@ -27,6 +31,7 @@ interface Props {
       'saleStartDate' | 'contractDate' | 'settlementDate'
     >>,
   ) => Promise<void>;
+  onImportCsv: () => void;
 }
 
 function statusColor(s: PropertyStatus | null | undefined): string {
@@ -48,16 +53,18 @@ function formatDateTime(iso: string | null | undefined): string {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export function SalesManagementView({ properties, role, onSaveSalesInfo }: Props) {
+export function SalesManagementView({ properties, members, role, onSaveSalesInfo, onImportCsv }: Props) {
   const canEdit = role === 'admin' || role === 'editor';
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<PropertyStatus | ''>('');
+  const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const { widths: colW, setWidth: setColW } = useColumnWidths<ColKey>(
     'colw:sales-management',
@@ -76,9 +83,10 @@ export function SalesManagementView({ properties, role, onSaveSalesInfo }: Props
     return properties.filter(p => {
       if (q && !(p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))) return false;
       if (statusFilter && p.status !== statusFilter) return false;
+      if (typeFilter && p.propertyType !== typeFilter) return false;
       return true;
     });
-  }, [properties, search, statusFilter]);
+  }, [properties, search, statusFilter, typeFilter]);
 
   // ソート
   const sorted = useMemo(() => {
@@ -113,7 +121,7 @@ export function SalesManagementView({ properties, role, onSaveSalesInfo }: Props
     return arr;
   }, [filtered, sortKey, sortDir]);
 
-  useEffect(() => { setPage(1); }, [search, statusFilter, sortKey, sortDir, pageSize]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, typeFilter, sortKey, sortDir, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -132,6 +140,17 @@ export function SalesManagementView({ properties, role, onSaveSalesInfo }: Props
     }
   }
 
+  function doExport(scope: 'all' | 'filtered', format: 'csv' | 'excel') {
+    setExportMenuOpen(false);
+    const target = scope === 'all' ? properties : filtered;
+    if (target.length === 0) return;
+    const suffix = scope === 'all' ? '全件' : `絞り込み${target.length}件`;
+    const ext = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `cecela_販売管理_${suffix}.${ext}`;
+    if (format === 'csv') exportSalesPlanToCSV(target, members, filename);
+    else exportSalesPlanToExcel(target, members, filename);
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -141,8 +160,62 @@ export function SalesManagementView({ properties, role, onSaveSalesInfo }: Props
             <h1 className="text-lg md:text-xl font-bold text-gray-800 dark:text-gray-100">販売管理</h1>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               全 {properties.length} 件
-              {(search || statusFilter) && ` / 該当 ${filtered.length} 件`}
+              {(search || statusFilter || typeFilter) && ` / 該当 ${filtered.length} 件`}
             </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* エクスポート ドロップダウン */}
+            <div className="relative">
+              <button
+                onClick={() => setExportMenuOpen(v => !v)}
+                disabled={properties.length === 0}
+                className="flex items-center gap-1.5 text-xs md:text-sm text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:border-gray-400 rounded-lg px-3 py-2 transition disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faDownload} />
+                <span>エクスポート</span>
+                <FontAwesomeIcon icon={faChevronDown} className="text-[10px]" />
+              </button>
+              {exportMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setExportMenuOpen(false)} aria-hidden="true" />
+                  <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-40 py-1 text-xs">
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">全件 ({properties.length})</div>
+                    <button onClick={() => doExport('all', 'excel')} className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faFileExcel} className="text-green-600" /> Excel
+                    </button>
+                    <button onClick={() => doExport('all', 'csv')} className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faDownload} /> CSV
+                    </button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">絞り込み中 ({filtered.length})</div>
+                    <button
+                      onClick={() => doExport('filtered', 'excel')}
+                      disabled={filtered.length === 0}
+                      className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <FontAwesomeIcon icon={faFileExcel} className="text-green-600" /> Excel
+                    </button>
+                    <button
+                      onClick={() => doExport('filtered', 'csv')}
+                      disabled={filtered.length === 0}
+                      className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <FontAwesomeIcon icon={faDownload} /> CSV
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            {canEdit && (
+              <button
+                onClick={onImportCsv}
+                className="flex items-center gap-1.5 text-xs md:text-sm text-blue-600 hover:text-blue-700 border border-blue-300 dark:border-blue-700 hover:border-blue-500 rounded-lg px-3 py-2 transition"
+                title="CSVファイルから物件データをインポート"
+              >
+                <FontAwesomeIcon icon={faFileImport} />
+                <span className="hidden sm:inline">CSVインポート</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -171,9 +244,17 @@ export function SalesManagementView({ properties, role, onSaveSalesInfo }: Props
             <option value="">ステータス：すべて</option>
             {PROPERTY_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
-          {(search || statusFilter) && (
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value as PropertyType | '')}
+            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">種別：すべて</option>
+            {PROPERTY_TYPE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+          {(search || statusFilter || typeFilter) && (
             <button
-              onClick={() => { setSearch(''); setStatusFilter(''); }}
+              onClick={() => { setSearch(''); setStatusFilter(''); setTypeFilter(''); }}
               className="text-xs text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-gray-400 rounded-lg px-3 py-2 transition"
             >
               絞り込み解除

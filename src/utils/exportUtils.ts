@@ -231,7 +231,7 @@ export function exportPropertyToCSV(property: Property, members: Member[]) {
 const SALES_HEADERS = [
   '物件ID', '物件名', '担当者', '物件種別', '契約ステータス',
   '原価', '借入', '原価×15%', '差額(自己資金)',
-  '販売価格', '価格未確定', '販売開始日', '契約日',
+  '販売価格', '価格未確定', '販売開始日', '契約日', '決済日',
   '価格変更日', '登録日',
 ] as const;
 
@@ -258,6 +258,7 @@ function buildSalesRow(p: Property, members: Member[]): string[] {
     p.pricePending ? '○' : '',
     p.saleStartDate ?? '',
     p.contractDate ?? '',
+    p.settlementDate ?? '',
     priceUpdated,
     new Date(p.createdAt).toLocaleDateString('ja-JP'),
   ];
@@ -354,7 +355,7 @@ export function exportSalesPlanToExcel(properties: Property[], members: Member[]
   const DATE_S = { font: { sz: 10 }, alignment: { horizontal: 'center', vertical: 'center' } };
 
   const numericCols = new Set([5, 6, 7, 8, 9]); // 原価〜販売価格
-  const dateCols    = new Set([11, 12, 13, 14]); // 販売開始日, 契約日, 価格変更日, 登録日
+  const dateCols    = new Set([11, 12, 13, 14, 15]); // 販売開始日, 契約日, 決済日, 価格変更日, 登録日
 
   const headerRow = [
     ...[...SALES_HEADERS].map(h => ({ v: h, s: HEADER_S })),
@@ -381,7 +382,7 @@ export function exportSalesPlanToExcel(properties: Property[], members: Member[]
   ws['!cols'] = [
     { wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
     { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-    { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 },
+    { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 13 },
     { wch: 18 }, { wch: 13 },
     ...months.map(() => ({ wch: 11 })),
   ];

@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark, faUpload, faTriangleExclamation, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
-import type { Property } from '../types';
+import type { Property, PropertyStatus, PropertyType } from '../types';
+import { PROPERTY_STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from '../types';
 import type { ImportPropertyRow } from '../hooks/useProperties';
 
 interface Props {
@@ -70,12 +71,19 @@ function normalizePrice(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const HEADER_ALIASES: Record<keyof Pick<ImportPropertyRow, 'id' | 'name' | 'salePrice' | 'saleStartDate' | 'contractDate'>, string[]> = {
-  id:            ['物件ID', 'ID', 'id', 'property_id'],
-  name:          ['物件名', '名前', 'name'],
-  salePrice:     ['販売価格', '価格', '販売金額', 'salePrice', 'price'],
-  saleStartDate: ['販売開始日', '販売開始', 'saleStartDate', 'sale_start_date'],
-  contractDate:  ['契約日', 'contractDate', 'contract_date'],
+const HEADER_ALIASES: Record<
+  'id' | 'name' | 'propertyType' | 'status' | 'salePrice' | 'pricePending' | 'saleStartDate' | 'contractDate' | 'settlementDate',
+  string[]
+> = {
+  id:             ['物件ID', 'ID', 'id', 'property_id'],
+  name:           ['物件名', '名前', 'name'],
+  propertyType:   ['物件種別', '種別', 'propertyType', 'property_type'],
+  status:         ['契約ステータス', 'ステータス', 'status'],
+  salePrice:      ['販売価格', '価格', '販売金額', 'salePrice', 'price'],
+  pricePending:   ['価格未確定', '未確定', 'pricePending', 'price_pending'],
+  saleStartDate:  ['販売開始日', '販売開始', 'saleStartDate', 'sale_start_date'],
+  contractDate:   ['契約日', 'contractDate', 'contract_date'],
+  settlementDate: ['決済日', 'settlementDate', 'settlement_date'],
 };
 
 function findColumn(headers: string[], aliases: string[]): number {
@@ -84,6 +92,24 @@ function findColumn(headers: string[], aliases: string[]): number {
     if (idx >= 0) return idx;
   }
   return -1;
+}
+
+// 「○」「true」「1」「はい」を真として読む（それ以外と空欄は false）
+function normalizeBool(v: string): boolean {
+  const s = v.trim().toLowerCase();
+  return s === '○' || s === '◯' || s === 'true' || s === '1' || s === 'はい' || s === 'yes';
+}
+
+function normalizeStatus(v: string): PropertyStatus | null {
+  const s = v.trim();
+  if (!s) return null;
+  return (PROPERTY_STATUS_OPTIONS as readonly string[]).includes(s) ? (s as PropertyStatus) : null;
+}
+
+function normalizePropertyType(v: string): PropertyType | null {
+  const s = v.trim();
+  if (!s) return null;
+  return (PROPERTY_TYPE_OPTIONS as readonly string[]).includes(s) ? (s as PropertyType) : null;
 }
 
 export function CsvImportModal({ existingProperties, onImport, onClose }: Props) {
@@ -120,11 +146,15 @@ export function CsvImportModal({ existingProperties, onImport, onClose }: Props)
         return;
       }
 
-      const idCol    = findColumn(headers, HEADER_ALIASES.id);
-      const nameCol  = findColumn(headers, HEADER_ALIASES.name);
-      const priceCol = findColumn(headers, HEADER_ALIASES.salePrice);
-      const startCol = findColumn(headers, HEADER_ALIASES.saleStartDate);
-      const contCol  = findColumn(headers, HEADER_ALIASES.contractDate);
+      const idCol      = findColumn(headers, HEADER_ALIASES.id);
+      const nameCol    = findColumn(headers, HEADER_ALIASES.name);
+      const typeCol    = findColumn(headers, HEADER_ALIASES.propertyType);
+      const statusCol  = findColumn(headers, HEADER_ALIASES.status);
+      const priceCol   = findColumn(headers, HEADER_ALIASES.salePrice);
+      const pendingCol = findColumn(headers, HEADER_ALIASES.pricePending);
+      const startCol   = findColumn(headers, HEADER_ALIASES.saleStartDate);
+      const contCol    = findColumn(headers, HEADER_ALIASES.contractDate);
+      const settleCol  = findColumn(headers, HEADER_ALIASES.settlementDate);
 
       if (idCol < 0) {
         setParseError(`「物件ID」列が見つかりません。ヘッダー: ${headers.join(', ')}`);
@@ -139,25 +169,40 @@ export function CsvImportModal({ existingProperties, onImport, onClose }: Props)
         const id = (row[idCol] ?? '').trim();
         const warnings: string[] = [];
 
-        const nameRaw = nameCol >= 0 ? row[nameCol] : '';
-        const priceRaw = priceCol >= 0 ? row[priceCol] : '';
-        const startRaw = startCol >= 0 ? row[startCol] : '';
-        const contRaw = contCol >= 0 ? row[contCol] : '';
+        const nameRaw    = nameCol    >= 0 ? row[nameCol]    : '';
+        const typeRaw    = typeCol    >= 0 ? row[typeCol]    : '';
+        const statusRaw  = statusCol  >= 0 ? row[statusCol]  : '';
+        const priceRaw   = priceCol   >= 0 ? row[priceCol]   : '';
+        const pendingRaw = pendingCol >= 0 ? row[pendingCol] : '';
+        const startRaw   = startCol   >= 0 ? row[startCol]   : '';
+        const contRaw    = contCol    >= 0 ? row[contCol]    : '';
+        const settleRaw  = settleCol  >= 0 ? row[settleCol]  : '';
 
-        const salePrice = priceRaw?.trim() ? normalizePrice(priceRaw) : undefined;
-        const saleStart = startRaw?.trim() ? normalizeDate(startRaw) : undefined;
-        const contract  = contRaw?.trim()  ? normalizeDate(contRaw)  : undefined;
+        const propertyType  = typeRaw?.trim()    ? normalizePropertyType(typeRaw)   : undefined;
+        const status        = statusRaw?.trim()  ? normalizeStatus(statusRaw)       : undefined;
+        const salePrice     = priceRaw?.trim()   ? normalizePrice(priceRaw)         : undefined;
+        const pricePending  = pendingRaw?.trim() ? normalizeBool(pendingRaw)        : undefined;
+        const saleStart     = startRaw?.trim()   ? normalizeDate(startRaw)          : undefined;
+        const contract      = contRaw?.trim()    ? normalizeDate(contRaw)           : undefined;
+        const settlement    = settleRaw?.trim()  ? normalizeDate(settleRaw)         : undefined;
 
-        if (priceRaw?.trim() && salePrice == null) warnings.push(`価格 "${priceRaw}" を数値に変換できませんでした`);
-        if (startRaw?.trim() && saleStart == null) warnings.push(`販売開始日 "${startRaw}" を日付に変換できませんでした`);
-        if (contRaw?.trim()  && contract  == null) warnings.push(`契約日 "${contRaw}" を日付に変換できませんでした`);
+        if (typeRaw?.trim()    && propertyType == null) warnings.push(`物件種別 "${typeRaw}" は選択肢にありません`);
+        if (statusRaw?.trim()  && status == null)       warnings.push(`ステータス "${statusRaw}" は選択肢にありません`);
+        if (priceRaw?.trim()   && salePrice == null)    warnings.push(`価格 "${priceRaw}" を数値に変換できませんでした`);
+        if (startRaw?.trim()   && saleStart == null)    warnings.push(`販売開始日 "${startRaw}" を日付に変換できませんでした`);
+        if (contRaw?.trim()    && contract == null)     warnings.push(`契約日 "${contRaw}" を日付に変換できませんでした`);
+        if (settleRaw?.trim()  && settlement == null)   warnings.push(`決済日 "${settleRaw}" を日付に変換できませんでした`);
 
         const out: ImportPropertyRow = {
           id,
-          ...(nameRaw?.trim() ? { name: nameRaw.trim() } : {}),
-          ...(priceRaw?.trim() ? { salePrice } : {}),
-          ...(startRaw?.trim() ? { saleStartDate: saleStart } : {}),
-          ...(contRaw?.trim()  ? { contractDate:  contract  } : {}),
+          ...(nameRaw?.trim()    ? { name: nameRaw.trim() }                 : {}),
+          ...(typeRaw?.trim()    ? { propertyType }                         : {}),
+          ...(statusRaw?.trim()  ? { status }                               : {}),
+          ...(priceRaw?.trim()   ? { salePrice }                            : {}),
+          ...(pendingRaw?.trim() ? { pricePending }                         : {}),
+          ...(startRaw?.trim()   ? { saleStartDate: saleStart }             : {}),
+          ...(contRaw?.trim()    ? { contractDate:  contract }              : {}),
+          ...(settleRaw?.trim()  ? { settlementDate: settlement }           : {}),
         };
 
         return {
@@ -258,7 +303,7 @@ export function CsvImportModal({ existingProperties, onImport, onClose }: Props)
                   <span className="text-xs text-gray-500 dark:text-gray-400">{fileName || '未選択'}</span>
                 </div>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
-                  必要列: 物件ID（必須）/ 物件名 / 販売価格 / 販売開始日 / 契約日（空欄OK）
+                  必要列: 物件ID（必須）/ 物件名 / 物件種別 / 契約ステータス / 販売価格 / 価格未確定 / 販売開始日 / 契約日 / 決済日（任意・空欄OK）
                 </p>
               </div>
 
@@ -279,15 +324,19 @@ export function CsvImportModal({ existingProperties, onImport, onClose }: Props)
                   </div>
 
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto max-h-64">
-                    <table className="w-full text-xs">
+                    <table className="text-xs whitespace-nowrap">
                       <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
                         <tr>
                           <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">状態</th>
                           <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">物件ID</th>
                           <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">物件名</th>
+                          <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">種別</th>
+                          <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">ステータス</th>
                           <th className="px-2 py-1.5 text-right font-semibold text-gray-600 dark:text-gray-400">販売価格</th>
+                          <th className="px-2 py-1.5 text-center font-semibold text-gray-600 dark:text-gray-400">未確定</th>
                           <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">販売開始日</th>
                           <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">契約日</th>
+                          <th className="px-2 py-1.5 text-left font-semibold text-gray-600 dark:text-gray-400">決済日</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -307,11 +356,15 @@ export function CsvImportModal({ existingProperties, onImport, onClose }: Props)
                             </td>
                             <td className="px-2 py-1 font-mono">{r.parsed.id}</td>
                             <td className="px-2 py-1 truncate max-w-[160px]" title={r.parsed.name}>{r.parsed.name ?? '―'}</td>
+                            <td className="px-2 py-1">{r.parsed.propertyType ?? '―'}</td>
+                            <td className="px-2 py-1">{r.parsed.status ?? '―'}</td>
                             <td className="px-2 py-1 text-right font-mono">
                               {r.parsed.salePrice != null ? r.parsed.salePrice.toLocaleString('ja-JP') : '―'}
                             </td>
+                            <td className="px-2 py-1 text-center">{r.parsed.pricePending ? '○' : ''}</td>
                             <td className="px-2 py-1 font-mono">{r.parsed.saleStartDate ?? '―'}</td>
                             <td className="px-2 py-1 font-mono">{r.parsed.contractDate ?? '―'}</td>
+                            <td className="px-2 py-1 font-mono">{r.parsed.settlementDate ?? '―'}</td>
                           </tr>
                         ))}
                       </tbody>
