@@ -2,11 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import type { TaskTemplate } from '../types';
 import { supabase } from '../lib/supabase';
 
-export function useTemplates() {
+export function useTemplates(userId: string | undefined) {
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('task_templates').select('*').order('order_index');
+    const { data, error } = await supabase.from('task_templates').select('*').order('order_index');
+    if (error) {
+      console.error('templates load error:', error);
+      return;
+    }
     if (data) {
       setTemplates(data.map(t => ({
         id: t.id,
@@ -17,7 +21,10 @@ export function useTemplates() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (userId) load();
+    else setTemplates([]);
+  }, [load, userId]);
 
   async function addTemplate(name: string, color: string) {
     const id = `tt-${Date.now()}`;

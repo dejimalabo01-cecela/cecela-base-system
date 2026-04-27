@@ -4,15 +4,18 @@ import { supabase } from '../lib/supabase';
 
 // 物件IDフォーマット：'001' 〜 '999...' の連番。
 // `P-001` 形式の旧データも、`003.1` のような枝番付きIDも、先頭の整数部分を見て最大値を算出する。
-function generatePropertyId(properties: Property[]): string {
-  const max = properties.reduce((m, p) => {
+function maxPropertyIdNumber(properties: Property[]): number {
+  return properties.reduce((m, p) => {
     const stripped = p.id.replace(/^P-/, '');
     const match = stripped.match(/^(\d+)/);
     if (!match) return m;
     const n = parseInt(match[1], 10);
     return isNaN(n) ? m : Math.max(m, n);
   }, 0);
-  return String(max + 1).padStart(3, '0');
+}
+
+function generatePropertyId(properties: Property[]): string {
+  return String(maxPropertyIdNumber(properties) + 1).padStart(3, '0');
 }
 
 // 編集後の物件IDが許可されたフォーマットかチェック。
@@ -25,23 +28,33 @@ function uuid(): string {
   return crypto.randomUUID();
 }
 
-export function useProperties() {
+export function useProperties(userId: string | undefined) {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const { data: props } = await supabase
+    setLoading(true);
+    const { data: props, error: propsError } = await supabase
       .from('properties')
       .select('*')
       .order('created_at');
 
+    if (propsError) {
+      console.error('properties load error:', propsError);
+      setLoading(false);
+      return;
+    }
     if (!props) { setLoading(false); return; }
 
-    const { data: tasks } = await supabase
+    const { data: tasks, error: tasksError } = await supabase
       .from('tasks')
       .select('*')
       .order('order_index');
+
+    if (tasksError) {
+      console.error('tasks load error:', tasksError);
+    }
 
     const result: Property[] = props.map(p => {
       const seen = new Set<string>();
@@ -87,7 +100,19 @@ export function useProperties() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // 認証が完了する（userIdが入る）まで load を呼ばない。
+  // RLS が `TO authenticated` になっているので、未認証で叩くと空配列が返り、
+  // 結果として「物件0件」のままになるバグの原因だった。
+  useEffect(() => {
+    if (userId) {
+      load();
+    } else {
+      // ログアウト時はクリア
+      setProperties([]);
+      setSelectedId(null);
+      setLoading(true);
+    }
+  }, [load, userId]);
 
   async function addProperty(name: string) {
     const id = generatePropertyId(properties);
@@ -152,13 +177,9 @@ export function useProperties() {
       .filter((p): p is Property => !!p);
     if (sources.length === 0) return 0;
 
-    const startMax = properties.reduce((m, p) => {
-      const n = parseInt(p.id.replace('P-', ''), 10);
-      return isNaN(n) ? m : Math.max(m, n);
-    }, 0);
-
+    const startMax = maxPropertyIdNumber(properties);
     const newIds: string[] = sources.map((_, i) =>
-      `P-${String(startMax + 1 + i).padStart(3, '0')}`
+      String(startMax + 1 + i).padStart(3, '0')
     );
 
     const propertyInserts = sources.map((source, i) => ({
@@ -212,26 +233,32 @@ export function useProperties() {
       )
     );
 
-    // Try full update with history columns first
+    // updatesに含まれているフィールドだけ送る（含まれていないフィールドを `?? null` で
+    // 渡すと、片方だけ更新したときにもう片方を NULL で上書きしてしまうバグになる）。
+    const dbUpdates: Record<string, unknown> = {
+      updated_at: now,
+      updated_by: userEmail ?? null,
+    };
+    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
+    if (updates.endDate !== undefined)   dbUpdates.end_date   = updates.endDate;
+
     const { error } = await supabase.from('tasks')
-      .update({
-        start_date: updates.startDate ?? null,
-        end_date:   updates.endDate   ?? null,
-        updated_at: now,
-        updated_by: userEmail ?? null,
-      })
+      .update(dbUpdates)
       .eq('property_id', propertyId)
       .eq('id', taskId);
 
-    // If history columns don't exist yet, fall back to basic update
+    // 履歴カラムが無い古いDBへのフォールバック
     if (error) {
-      await supabase.from('tasks')
-        .update({
-          start_date: updates.startDate ?? null,
-          end_date:   updates.endDate   ?? null,
-        })
+      const fallback: Record<string, unknown> = {};
+      if (updates.startDate !== undefined) fallback.start_date = updates.startDate;
+      if (updates.endDate !== undefined)   fallback.end_date   = updates.endDate;
+      const { error: fallbackError } = await supabase.from('tasks')
+        .update(fallback)
         .eq('property_id', propertyId)
         .eq('id', taskId);
+      if (fallbackError) {
+        console.error('updateTask failed (fallback):', fallbackError);
+      }
     }
   }
 

@@ -49,8 +49,8 @@ export default function App() {
     setTaskHidden, showAllTasks,
     syncWithTemplates,
     updateSalesInfo,
-  } = useProperties();
-  const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
+  } = useProperties(user?.id);
+  const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates(user?.id);
 
   async function handleAddTemplate(name: string, color: string) {
     await addTemplate(name, color);
@@ -66,7 +66,7 @@ export default function App() {
     await deleteTemplate(id);
     await reloadProperties();
   }
-  const { members, addMember, deleteMember } = useMembers();
+  const { members, addMember, deleteMember } = useMembers(user?.id);
 
   const [activeModule, setActiveModule] = useState<ModuleId>('construction');
   const [showNewModal, setShowNewModal] = useState(false);

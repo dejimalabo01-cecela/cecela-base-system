@@ -2,17 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Member } from '../types';
 import { supabase } from '../lib/supabase';
 
-export function useMembers() {
+export function useMembers(userId: string | undefined) {
   const [members, setMembers] = useState<Member[]>([]);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('members').select('*').order('created_at');
+    const { data, error } = await supabase.from('members').select('*').order('created_at');
+    if (error) {
+      console.error('members load error:', error);
+      return;
+    }
     if (data) {
       setMembers(data.map(m => ({ id: m.id, name: m.name })));
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (userId) load();
+    else setMembers([]);
+  }, [load, userId]);
 
   async function addMember(name: string) {
     const id = `m-${Date.now()}`;
