@@ -10,6 +10,7 @@ import { parseDate } from '../utils/dateUtils';
 import { getSaleStartDate } from '../utils/salesHelpers';
 import { Pagination, SortHeader } from './Pagination';
 import { exportSalesPlanToCSV, exportSalesPlanToExcel } from '../utils/exportUtils';
+import { ContractDetailModal } from './ContractDetailModal';
 
 type SortKey = 'id' | 'name' | 'type' | 'status' | 'price';
 type SortDir = 'asc' | 'desc';
@@ -77,6 +78,8 @@ export function SalesPlanView({
   const [deleting, setDeleting] = useState(false);
   const [copying, setCopying] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  // 契約金額の内訳ポップアップ。{year, month: null} = 年合計、{year, month: 0..11} = その月
+  const [contractDetail, setContractDetail] = useState<null | { year: number; month: number | null }>(null);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -274,7 +277,18 @@ export function SalesPlanView({
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
               販売価格合計 <span className="font-mono text-gray-700 dark:text-gray-200">{formatYen(totalSum) || '0'}</span>
               <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
-              契約金額合計 <span className="font-mono text-gray-700 dark:text-gray-200">{formatYen(contractTotalSum) || '0'}</span>
+              契約金額合計{' '}
+              {contractTotalSum > 0 ? (
+                <button
+                  onClick={() => setContractDetail({ year: fy, month: null })}
+                  className="font-mono text-blue-700 dark:text-blue-300 underline decoration-dotted underline-offset-2 hover:text-blue-900 dark:hover:text-blue-100"
+                  title="クリックで契約物件の内訳を表示"
+                >
+                  {formatYen(contractTotalSum)}
+                </button>
+              ) : (
+                <span className="font-mono text-gray-700 dark:text-gray-200">0</span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -508,9 +522,16 @@ export function SalesPlanView({
               <div className="w-56 px-3 text-xs font-semibold text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">契約金額 合計（月＝契約日）</div>
               <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
               <div className="w-28 border-r border-gray-200 dark:border-gray-700" />
-              <div className="w-24 px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-blue-700 dark:text-blue-200">
-                {formatYen(contractTotalSum)}
-              </div>
+              <button
+                onClick={() => contractTotalSum > 0 && setContractDetail({ year: fy, month: null })}
+                disabled={contractTotalSum === 0}
+                className="w-24 px-2 text-[11px] font-mono text-right border-r border-gray-200 dark:border-gray-700 text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-default disabled:hover:bg-transparent transition cursor-pointer h-full"
+                title={contractTotalSum > 0 ? 'クリックで契約物件の内訳を表示' : ''}
+              >
+                {contractTotalSum > 0 ? (
+                  <span className="underline decoration-dotted underline-offset-2">{formatYen(contractTotalSum)}</span>
+                ) : ''}
+              </button>
             </div>
           </div>
 
@@ -589,13 +610,19 @@ export function SalesPlanView({
             {/* Totals row 2: 契約金額 月別 */}
             <div className="flex border-b-2 border-gray-300 dark:border-gray-600 h-10 items-center bg-blue-50/40 dark:bg-blue-900/20">
               {contractMonthlyTotals.map((t, i) => (
-                <div
+                <button
                   key={i}
+                  type="button"
+                  onClick={() => t > 0 && setContractDetail({ year: months[i].year, month: months[i].month })}
+                  disabled={t === 0}
                   style={{ width: MONTH_CELL_W }}
-                  className="text-center text-[10px] font-mono text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700"
+                  className="text-center text-[10px] font-mono text-blue-700 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700 h-full hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-default disabled:hover:bg-transparent transition"
+                  title={t > 0 ? `${months[i].year}/${months[i].month + 1}月の契約物件を表示` : ''}
                 >
-                  {t > 0 ? formatYen(t) : ''}
-                </div>
+                  {t > 0 ? (
+                    <span className="underline decoration-dotted underline-offset-2 cursor-pointer">{formatYen(t)}</span>
+                  ) : ''}
+                </button>
               ))}
             </div>
           </div>
@@ -631,6 +658,39 @@ export function SalesPlanView({
           <div className="ml-auto">行クリックで編集</div>
         )}
       </div>
+
+      {/* 契約金額の内訳ポップアップ */}
+      {contractDetail && (() => {
+        const detailProps = filtered.filter(p => {
+          const c = parseDate(p.contractDate ?? null);
+          if (!c || !p.salePrice) return false;
+          if (contractDetail.month == null) {
+            // 年合計：FY範囲（4月〜翌年3月）に契約日が入っているもの
+            const fyStart = new Date(contractDetail.year, 3, 1).getTime();
+            const fyEnd   = new Date(contractDetail.year + 1, 2, 31, 23, 59, 59).getTime();
+            return c.getTime() >= fyStart && c.getTime() <= fyEnd;
+          }
+          // 月：その月に契約日が入っているもの
+          return c.getFullYear() === contractDetail.year && c.getMonth() === contractDetail.month;
+        });
+        const detailTotal = detailProps.reduce((s, p) => s + (p.salePrice ?? 0), 0);
+        const title = contractDetail.month == null
+          ? `FY${contractDetail.year} 契約物件の内訳`
+          : `${contractDetail.year}年${contractDetail.month + 1}月 契約物件の内訳`;
+        const subtitle = contractDetail.month == null
+          ? `${contractDetail.year}/4 〜 ${contractDetail.year + 1}/3 に契約日がある物件`
+          : '契約日でフィルタしています';
+        return (
+          <ContractDetailModal
+            title={title}
+            subtitle={subtitle}
+            properties={detailProps}
+            total={detailTotal}
+            onSelect={canEdit ? (id) => onEdit(id) : undefined}
+            onClose={() => setContractDetail(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
