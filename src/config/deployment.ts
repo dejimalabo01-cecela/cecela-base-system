@@ -1,0 +1,60 @@
+import type { ModuleId } from '../types';
+
+/**
+ * デプロイメント別の表示制御。
+ *
+ * 同じコードベースを複数の Vercel プロジェクトにデプロイし、それぞれを部署単位で
+ * 違う見た目にしたいときに使う。Vercel ダッシュボードで環境変数を設定するだけで、
+ * コードを変えずに表示モジュールを切替えられる。
+ *
+ * 例：
+ *   販売管理部用の Vercel:
+ *     VITE_ENABLED_MODULES = construction,sales-plan,sales-management
+ *     VITE_APP_TITLE       = Cecela 販売管理
+ *
+ *   マーケ部用の Vercel:
+ *     VITE_ENABLED_MODULES = marketing,construction
+ *     VITE_APP_TITLE       = Cecela マーケティング
+ *
+ *   全部署用（社内ポータル）の Vercel:
+ *     VITE_ENABLED_MODULES 未設定（＝全モジュール表示）
+ */
+
+const ALL_MODULES: ModuleId[] = ['construction', 'sales-plan', 'sales-management', 'marketing', 'sales'];
+
+/** 各サイドバーで表示する基本順序。最初に該当した有効モジュールが初期表示になる。 */
+const DEFAULT_PRIORITY: ModuleId[] = [
+  'construction',
+  'sales-plan',
+  'sales-management',
+  'marketing',
+  'sales',
+];
+
+function parseModuleList(raw: string | undefined): ModuleId[] | null {
+  if (!raw) return null;
+  const tokens = raw.split(',').map(s => s.trim()).filter(Boolean);
+  const valid: ModuleId[] = tokens.filter(
+    (t): t is ModuleId => (ALL_MODULES as readonly string[]).includes(t)
+  );
+  return valid.length > 0 ? valid : null;
+}
+
+/** このデプロイメントで表示するモジュールの集合。未設定なら全部 true。 */
+export function getEnabledModules(): Set<ModuleId> {
+  const list = parseModuleList(import.meta.env.VITE_ENABLED_MODULES);
+  return new Set(list ?? ALL_MODULES);
+}
+
+/** 初期表示モジュール（VITE_ENABLED_MODULES の先頭、または優先順序で最初に有効なもの）。 */
+export function getInitialModule(): ModuleId {
+  const list = parseModuleList(import.meta.env.VITE_ENABLED_MODULES);
+  if (list && list.length > 0) return list[0];
+  return DEFAULT_PRIORITY[0];
+}
+
+/** ブラウザタブ・ヘッダー等に表示するアプリ名。 */
+export function getAppTitle(): string {
+  const t = (import.meta.env.VITE_APP_TITLE ?? '').trim();
+  return t || 'Cecela 物件管理システム';
+}

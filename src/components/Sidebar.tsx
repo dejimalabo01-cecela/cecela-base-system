@@ -26,6 +26,7 @@ import {
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { ModuleId, Property } from '../types';
 import type { Role } from '../hooks/useRole';
+import { getEnabledModules, getAppTitle } from '../config/deployment';
 
 const RECENT_LIMIT = 5;
 
@@ -117,7 +118,11 @@ export function Sidebar({
 }: Props) {
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
-  const activeModuleDef = MODULES.find(m => m.id === activeModule)!;
+  // VITE_ENABLED_MODULES で部署別 Vercel に表示モジュールを絞る
+  const enabledModules = useMemo(() => getEnabledModules(), []);
+  const visibleModules = useMemo(() => MODULES.filter(m => enabledModules.has(m.id)), [enabledModules]);
+  const appTitle = useMemo(() => getAppTitle(), []);
+  const activeModuleDef = visibleModules.find(m => m.id === activeModule) ?? visibleModules[0] ?? MODULES[0];
 
   // properties が変わらなければ毎回ソートし直さない（タスク日付保存などで
   // App が再描画される度に走るのを防ぐ）。
@@ -147,7 +152,7 @@ export function Sidebar({
 
         {/* ロゴ＋テーマ切替 */}
         <div className="px-3 py-4 border-b border-gray-700 flex items-center justify-between">
-          <span className="text-xs font-black text-blue-400 tracking-tight">Cecela</span>
+          <span className="text-xs font-black text-blue-400 tracking-tight" title={appTitle}>Cecela</span>
           <button
             onClick={onToggleTheme}
             title={isDark ? 'ライトモード' : 'ダークモード'}
@@ -159,7 +164,7 @@ export function Sidebar({
 
         {/* モジュールリスト */}
         <nav className="flex-1 py-2 overflow-y-auto">
-          {MODULES.map(m => {
+          {visibleModules.map(m => {
             const isActive = activeModule === m.id;
             return (
               <button

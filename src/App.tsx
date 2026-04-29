@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBuilding, faBullhorn, faHandshake, faBars } from '@fortawesome/free-solid-svg-icons';
+import { getInitialModule, getAppTitle } from './config/deployment';
 import { useAuth } from './hooks/useAuth';
 import { useProperties } from './hooks/useProperties';
 import { useTemplates } from './hooks/useTemplates';
@@ -71,7 +72,14 @@ export default function App() {
   }
   const { members, addMember, deleteMember } = useMembers(user?.id);
 
-  const [activeModule, setActiveModule] = useState<ModuleId>('construction');
+  // 部署別 Vercel デプロイの場合、VITE_ENABLED_MODULES の先頭を初期表示にする
+  const [activeModule, setActiveModule] = useState<ModuleId>(() => getInitialModule());
+
+  // ブラウザタブのタイトルを VITE_APP_TITLE で上書き
+  useEffect(() => {
+    const t = getAppTitle();
+    if (t && document.title !== t) document.title = t;
+  }, []);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
