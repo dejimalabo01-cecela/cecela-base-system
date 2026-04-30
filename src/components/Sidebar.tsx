@@ -121,6 +121,7 @@ export function Sidebar({
 }: Props) {
   const isAdmin = role === 'admin';
   const isAssignee = role === 'assignee';
+  const isSales = role === 'sales';
   // 一括操作・テンプレート編集など「管理操作」は admin / editor のみ。
   const canManage = role === 'admin' || role === 'editor';
   // 物件の「新規登録」は admin / editor / assignee すべて可（assignee は自分名義で作成）。
@@ -131,11 +132,12 @@ export function Sidebar({
   // VITE_ENABLED_MODULES で部署別 Vercel に表示モジュールを絞る
   const enabledModules = useMemo(() => getEnabledModules(), []);
   // assignee（物件担当者）が見られるのは 工程管理 と 販売計画 のみ。
-  // 販売管理・マーケ・営業 はメニューに出さない。
+  // sales（販売管理担当者）が見られるのは 販売管理 のみ。
   const allowedForRole = useMemo(() => {
     if (isAssignee) return new Set<ModuleId>(['construction', 'sales-plan']);
+    if (isSales) return new Set<ModuleId>(['sales-management']);
     return null; // 制限なし
-  }, [isAssignee]);
+  }, [isAssignee, isSales]);
   const visibleModules = useMemo(() => MODULES.filter(m =>
     enabledModules.has(m.id) && (!allowedForRole || allowedForRole.has(m.id))
   ), [enabledModules, allowedForRole]);
@@ -230,7 +232,9 @@ export function Sidebar({
               ユーザー管理
             </button>
           )}
-          {isAssignee && (
+          {/* admin/editor 以外（assignee, sales, viewer）はユーザー管理画面を開けないので、
+              代わりに自分の表示名を編集できるプロフィール画面ボタンを出す */}
+          {!canOpenUserMgmt && (
             <button
               onClick={onEditProfile}
               className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"

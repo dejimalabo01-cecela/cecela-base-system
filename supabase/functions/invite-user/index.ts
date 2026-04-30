@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     }
 
     // ロールのバリデーション（デフォルトは assignee = 物件担当者）
-    const validRoles = ['admin', 'editor', 'viewer', 'assignee']
+    const validRoles = ['admin', 'editor', 'viewer', 'assignee', 'sales']
     const inviteRole = validRoles.includes(role) ? role : 'assignee'
     const displayNameValue = (typeof displayName === 'string' && displayName.trim())
       ? displayName.trim()

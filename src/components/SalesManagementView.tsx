@@ -54,7 +54,9 @@ function formatDateTime(iso: string | null | undefined): string {
 }
 
 export function SalesManagementView({ properties, members, role, onSaveSalesInfo, onImportCsv }: Props) {
-  const canEdit = role === 'admin' || role === 'editor';
+  // 販売管理画面の編集権限：管理者・編集者・販売管理担当者(sales)
+  // sales は他モジュールには入れないが、この画面の販売情報は自由に編集できる。
+  const canEdit = role === 'admin' || role === 'editor' || role === 'sales';
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<PropertyStatus | ''>('');

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faUsers, faShield, faPen, faEye, faPaperPlane, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faUsers, faShield, faPen, faEye, faPaperPlane, faTag, faTrash, faMoneyBillTrendUp } from '@fortawesome/free-solid-svg-icons';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, UserRole } from '../types';
 import type { Role } from '../hooks/useRole';
@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   editor: '編集者',
   viewer: '閲覧のみ',
   assignee: '物件担当者',
+  sales: '販売管理担当者',
 };
 
 const ROLE_ICONS: Record<UserRole, typeof faShield> = {
@@ -24,6 +25,7 @@ const ROLE_ICONS: Record<UserRole, typeof faShield> = {
   editor: faPen,
   viewer: faEye,
   assignee: faTag,
+  sales: faMoneyBillTrendUp,
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -31,9 +33,10 @@ const ROLE_COLORS: Record<UserRole, string> = {
   editor: 'text-blue-500 dark:text-blue-400',
   viewer: 'text-gray-500 dark:text-gray-400',
   assignee: 'text-emerald-600 dark:text-emerald-400',
+  sales: 'text-amber-600 dark:text-amber-400',
 };
 
-const ROLE_OPTIONS: UserRole[] = ['admin', 'editor', 'viewer', 'assignee'];
+const ROLE_OPTIONS: UserRole[] = ['admin', 'editor', 'viewer', 'assignee', 'sales'];
 
 export function UserManagementModal({ currentUserId, currentRole, onClose }: Props) {
   // admin は全権限。editor は表示名の変更だけ可能（招待・削除・ロール変更は不可）
@@ -189,6 +192,7 @@ export function UserManagementModal({ currentUserId, currentRole, onClose }: Pro
             <div><span className="font-semibold">編集者</span>：全物件・工程の作成・編集・削除が可能</div>
             <div><span className="font-semibold">閲覧のみ</span>：全物件の閲覧・エクスポートのみ（編集不可）</div>
             <div><span className="font-semibold">物件担当者</span>：自分が担当の物件のみ閲覧・編集可能</div>
+            <div><span className="font-semibold">販売管理担当者</span>：販売管理画面のみ編集可能（工程管理・販売計画は不可）</div>
           </div>
           {!isAdmin && (
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 px-1">
@@ -362,7 +366,7 @@ export function UserManagementModal({ currentUserId, currentRole, onClose }: Pro
               </p>
             )}
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-              招待されたユーザーはメールのリンクからパスワードを設定してログインできます。物件担当者で招待した場合、「工程管理」「販売計画」のうち自分が担当の物件のみが見えます。
+              招待されたユーザーはメールのリンクからパスワードを設定してログインできます。物件担当者で招待した場合は「工程管理」「販売計画」のうち自分が担当の物件のみ、販売管理担当者で招待した場合は「販売管理」画面のみが見えます。
             </p>
           </div>
         )}

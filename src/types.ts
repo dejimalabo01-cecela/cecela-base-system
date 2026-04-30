@@ -69,7 +69,7 @@ export interface Member {
   name: string;
 }
 
-export type UserRole = 'admin' | 'editor' | 'viewer' | 'assignee';
+export type UserRole = 'admin' | 'editor' | 'viewer' | 'assignee' | 'sales';
 
 export interface UserProfile {
   id: string;
