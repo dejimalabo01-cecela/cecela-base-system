@@ -132,9 +132,14 @@ export function useProperties(userId: string | undefined) {
     }
   }, [load, userId]);
 
-  async function addProperty(name: string) {
+  async function addProperty(name: string, opts?: { assigneeId?: string | null }) {
     const id = generatePropertyId(properties);
-    const { error: propError } = await supabase.from('properties').insert({ id, name });
+    const insertRow: Record<string, unknown> = { id, name };
+    // assignee 役のユーザーが新規登録するときは、自分自身を担当者として明示的に
+    // セットする（RLS で自分の物件しか見えなくなるので、未設定だと作った直後に
+    // 自分でも見えなくなる）。
+    if (opts?.assigneeId) insertRow.assignee_id = opts.assigneeId;
+    const { error: propError } = await supabase.from('properties').insert(insertRow);
     if (propError) { console.error('property insert error:', propError); return; }
 
     const { data: templates } = await supabase

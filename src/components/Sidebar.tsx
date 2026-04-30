@@ -121,9 +121,11 @@ export function Sidebar({
 }: Props) {
   const isAdmin = role === 'admin';
   const isAssignee = role === 'assignee';
-  // 物件の新規作成・一括操作・テンプレート編集など「管理操作」は admin / editor のみ。
-  // 物件担当者(assignee) は自分の物件の編集はできるが、新規作成や一括操作は不可。
+  // 一括操作・テンプレート編集など「管理操作」は admin / editor のみ。
   const canManage = role === 'admin' || role === 'editor';
+  // 物件の「新規登録」は admin / editor / assignee すべて可（assignee は自分名義で作成）。
+  // 一括操作（複製・削除・CSV）は引き続き admin / editor のみ。
+  const canCreateProperty = canManage || isAssignee;
   // ユーザー管理画面（招待・削除は admin のみ、表示名編集は admin/editor 共通で可能）
   const canOpenUserMgmt = role === 'admin' || role === 'editor';
   // VITE_ENABLED_MODULES で部署別 Vercel に表示モジュールを絞る
@@ -274,7 +276,7 @@ export function Sidebar({
                 <FontAwesomeIcon icon={faTableList} className="text-[10px]" />
                 物件一覧
               </button>
-              {canManage && (
+              {canCreateProperty && (
                 <button
                   onClick={onNew}
                   className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg py-2 transition flex items-center justify-center gap-1.5"

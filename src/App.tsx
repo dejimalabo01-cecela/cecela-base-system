@@ -70,6 +70,15 @@ export default function App() {
   } = useProperties(user?.id);
   const { templates, addTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates(user?.id);
 
+  // 物件担当者(assignee) が新規登録するときは、自分自身を assignee_id にセット
+  // （そうしないと RLS でその新しい物件が本人にも見えなくなる）。
+  async function handleAddProperty(name: string) {
+    await addProperty(
+      name,
+      role === 'assignee' && user?.id ? { assigneeId: user.id } : undefined,
+    );
+  }
+
   async function handleAddTemplate(name: string, color: string) {
     await addTemplate(name, color);
     await reloadProperties();
@@ -277,7 +286,7 @@ export default function App() {
         <p className="text-lg font-medium text-gray-500 dark:text-gray-400">物件を選択してください</p>
         <p className="text-sm mt-2 text-gray-400 dark:text-gray-500">
           左のサイドバーから物件を選ぶか、
-          {(role === 'admin' || role === 'editor') && (
+          {(role === 'admin' || role === 'editor' || role === 'assignee') && (
             <button onClick={() => setShowNewModal(true)} className="text-blue-500 hover:underline">
               新規物件を登録
             </button>
@@ -358,7 +367,7 @@ export default function App() {
       </div>
 
       {showNewModal && (
-        <NewPropertyModal onAdd={addProperty} onClose={() => setShowNewModal(false)} />
+        <NewPropertyModal onAdd={handleAddProperty} onClose={() => setShowNewModal(false)} />
       )}
       {showPasswordModal && (
         <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
