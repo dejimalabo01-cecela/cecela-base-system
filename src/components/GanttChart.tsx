@@ -68,6 +68,16 @@ function isSalesManagedTask(task: Task): boolean {
   return task.name.includes('販売');
 }
 
+// 編集者ラベル + 日時を「田中太郎  2025/04/15 14:30」形式に整形。
+// 物件ヘッダーの最終編集表示と、タスク行の hover tooltip 双方で使う。
+function formatEditInfo(updatedBy: string | null, updatedAt: string | null): string | null {
+  if (!updatedBy || !updatedAt) return null;
+  const d = new Date(updatedAt);
+  if (Number.isNaN(d.getTime())) return null;
+  const dateStr = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${updatedBy}  ${dateStr}`;
+}
+
 interface TaskLabelRowProps {
   task: Task;
   canEdit: boolean;
@@ -84,6 +94,10 @@ function SortableTaskLabelRow({
 }: TaskLabelRowProps) {
   const salesManaged = isSalesManagedTask(task);
   const dateInputDisabled = !canEdit || task.hidden || salesManaged;
+  // タスク単位の最終編集ラベル（hover tooltip 用）。未編集なら null。
+  const taskEditInfo = formatEditInfo(task.updatedBy, task.updatedAt);
+  const baseTitle = salesManaged ? `${task.name}（販売管理で編集）` : task.name;
+  const taskTitle = taskEditInfo ? `${baseTitle}\n最終更新: ${taskEditInfo}` : baseTitle;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -104,7 +118,7 @@ function SortableTaskLabelRow({
     >
       <div
         className="w-32 md:w-44 px-2 md:px-3 py-2 text-[11px] md:text-xs font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 flex items-center gap-1"
-        title={salesManaged ? `${task.name}（販売管理で編集）` : task.name}
+        title={taskTitle}
         style={{ borderLeft: `3px solid ${task.color}` }}
       >
         {canEdit && !task.hidden && (
@@ -357,14 +371,6 @@ export function GanttChart({
     if (confirm(`「${property.name}」を削除しますか？\nこの操作は取り消せません。`)) {
       onDelete();
     }
-  }
-
-  // Format edit history
-  function formatEditInfo(updatedBy: string | null, updatedAt: string | null) {
-    if (!updatedBy || !updatedAt) return null;
-    const d = new Date(updatedAt);
-    const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    return `${updatedBy}  ${dateStr}`;
   }
 
   const lastEdit = formatEditInfo(property.updatedBy, property.updatedAt);

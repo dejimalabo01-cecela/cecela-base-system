@@ -103,6 +103,8 @@ interface Props {
   isDark: boolean;
   onToggleTheme: () => void;
   role: Role;
+  themeColor?: string;
+  themeLabel?: string | null;
   onCloseMobile?: () => void;
 }
 
@@ -112,6 +114,7 @@ export function Sidebar({
   onSignOut, onChangePassword,
   onEditTemplates, onManageUsers,
   isDark, onToggleTheme, role,
+  themeColor, themeLabel,
   onCloseMobile,
 }: Props) {
   const isAdmin = role === 'admin';
@@ -159,9 +162,23 @@ export function Sidebar({
       ═══════════════════════════════ */}
       <div className="flex flex-col border-r border-gray-700 shrink-0" style={{ width: '108px' }}>
 
-        {/* ロゴ＋テーマ切替 */}
+        {/* ロゴ＋テーマ切替（ロゴ色は VITE_THEME_COLOR で部署別に変えられる） */}
         <div className="px-3 py-4 border-b border-gray-700 flex items-center justify-between">
-          <span className="text-xs font-black text-blue-400 tracking-tight" title={appTitle}>Cecela</span>
+          <span
+            className="text-xs font-black tracking-tight flex items-center gap-1"
+            title={appTitle}
+            style={themeColor ? { color: themeColor } : undefined}
+          >
+            <span>Cecela</span>
+            {themeLabel && (
+              <span
+                className="text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider text-white"
+                style={themeColor ? { backgroundColor: themeColor } : undefined}
+              >
+                {themeLabel}
+              </span>
+            )}
+          </span>
           <button
             onClick={onToggleTheme}
             title={isDark ? 'ライトモード' : 'ダークモード'}

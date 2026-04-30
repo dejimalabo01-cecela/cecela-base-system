@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBuilding, faBullhorn, faHandshake, faBars } from '@fortawesome/free-solid-svg-icons';
-import { getInitialModule, getAppTitle } from './config/deployment';
+import { getInitialModule, getAppTitle, getThemeColor, getThemeLabel } from './config/deployment';
 import { useAuth } from './hooks/useAuth';
 import { useProperties } from './hooks/useProperties';
 import { useTemplates } from './hooks/useTemplates';
@@ -41,7 +41,7 @@ const COMING_SOON: Record<string, { icon: IconDefinition; label: string; descrip
 export default function App() {
   const { user, loading: authLoading, signIn, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { role } = useRole(user?.id);
+  const { role, displayName } = useRole(user?.id);
   const {
     properties, selectedProperty, selectedId, loading,
     load: reloadProperties,
@@ -123,6 +123,11 @@ export default function App() {
   }
 
   const userEmail = user.email ?? '';
+  // 更新履歴（updated_by）に保存するラベル：表示名があればそれ、無ければメール。
+  // GanttChart のタスク変更履歴 hover tooltip 等で「誰が編集したか」を読みやすく表示するために使う。
+  const userLabel = (displayName && displayName.trim()) ? displayName.trim() : userEmail;
+  const themeColor = getThemeColor();
+  const themeLabel = getThemeLabel();
 
   // モバイルのトップバーに表示する現在の画面タイトル
   function currentScreenTitle(): string {
@@ -151,7 +156,7 @@ export default function App() {
           properties={properties}
           members={members}
           role={role}
-          onSaveSalesInfo={(propertyId, updates) => updateSalesInfo(propertyId, updates, userEmail)}
+          onSaveSalesInfo={(propertyId, updates) => updateSalesInfo(propertyId, updates, userLabel)}
           onImportCsv={() => setShowCsvImport(true)}
         />
       );
@@ -222,9 +227,9 @@ export default function App() {
           property={selectedProperty}
           members={members}
           role={role}
-          onUpdateTask={(taskId, updates) => updateTask(selectedProperty.id, taskId, updates, userEmail)}
-          onUpdateAssignee={(assigneeId) => updateAssignee(selectedProperty.id, assigneeId, userEmail)}
-          onUpdatePropertyName={(name) => updatePropertyName(selectedProperty.id, name, userEmail)}
+          onUpdateTask={(taskId, updates) => updateTask(selectedProperty.id, taskId, updates, userLabel)}
+          onUpdateAssignee={(assigneeId) => updateAssignee(selectedProperty.id, assigneeId, userLabel)}
+          onUpdatePropertyName={(name) => updatePropertyName(selectedProperty.id, name, userLabel)}
           onUpdatePropertyId={(newId) => updatePropertyId(selectedProperty.id, newId)}
           onDelete={() => deleteProperty(selectedProperty.id)}
           onCopy={() => setShowCopyModal(true)}
@@ -256,7 +261,10 @@ export default function App() {
   const withClose = (fn: () => void) => () => { fn(); closeSidebar(); };
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden font-sans">
+      {/* デプロイ別テーマカラー帯（どのシステムにログイン中か視覚的に区別するため） */}
+      <div className="h-1 w-full shrink-0" style={{ backgroundColor: themeColor }} aria-hidden="true" />
+      <div className="flex flex-1 min-h-0">
       {/* Mobile: overlay behind sidebar */}
       {sidebarOpen && (
         <div
@@ -291,6 +299,8 @@ export default function App() {
           isDark={isDark}
           onToggleTheme={toggleTheme}
           role={role}
+          themeColor={themeColor}
+          themeLabel={themeLabel}
           onCloseMobile={closeSidebar}
         />
       </div>
@@ -312,6 +322,7 @@ export default function App() {
 
         {renderMain()}
       </main>
+      </div>
 
       {showNewModal && (
         <NewPropertyModal onAdd={addProperty} onClose={() => setShowNewModal(false)} />
@@ -350,8 +361,8 @@ export default function App() {
           <SalesPlanEditModal
             property={target}
             isAdmin={role === 'admin'}
-            onSaveSalesInfo={(updates) => updateSalesInfo(target.id, updates, userEmail)}
-            onUpdatePropertyName={(name) => updatePropertyName(target.id, name, userEmail)}
+            onSaveSalesInfo={(updates) => updateSalesInfo(target.id, updates, userLabel)}
+            onUpdatePropertyName={(name) => updatePropertyName(target.id, name, userLabel)}
             onUpdatePropertyId={async (newId) => {
               const result = await updatePropertyId(target.id, newId);
               // 物件IDが変わったら、編集中の参照も新IDに付け替える

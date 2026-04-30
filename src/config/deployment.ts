@@ -58,3 +58,32 @@ export function getAppTitle(): string {
   const t = (import.meta.env.VITE_APP_TITLE ?? '').trim();
   return t || 'Cecela 物件管理システム';
 }
+
+/**
+ * このデプロイメントのテーマカラー（HEX）。
+ * トップの細い色帯と Cecela ロゴの色に反映され、どのシステムにログイン中か
+ * 視覚的に区別できるようにする。
+ *
+ * 例：
+ *   工程管理・販売計画用の Vercel: VITE_THEME_COLOR = #1F3A8A （ブルー：default）
+ *   販売管理部用の Vercel:        VITE_THEME_COLOR = #B45309 （アンバー）
+ *   マーケ用の Vercel:            VITE_THEME_COLOR = #047857 （グリーン）
+ */
+export function getThemeColor(): string {
+  const c = (import.meta.env.VITE_THEME_COLOR ?? '').trim();
+  // 簡易バリデーション（# + 3 or 6 hex桁）
+  if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(c)) return c;
+  return '#1F3A8A'; // default: blue-900
+}
+
+/**
+ * このデプロイメントのテーマ識別ラベル（任意）。
+ * ロゴ横にバッジ的に小さく表示する用途を想定。VITE_THEME_LABEL 未設定なら null。
+ *
+ * 例：
+ *   販売管理部用の Vercel: VITE_THEME_LABEL = 販売
+ */
+export function getThemeLabel(): string | null {
+  const t = (import.meta.env.VITE_THEME_LABEL ?? '').trim();
+  return t || null;
+}
