@@ -40,7 +40,7 @@ function lastEditedTime(p: Property): number {
   return ms.length > 0 ? Math.max(...ms) : 0;
 }
 
-type SubMenuItem = { id: string; label: string; icon: IconDefinition };
+type SubMenuItem = { id: string; label: string; icon: IconDefinition; available?: boolean };
 
 const MODULES: {
   id: ModuleId;
@@ -68,7 +68,7 @@ const MODULES: {
     label: 'マーケ',
     icon: faBullhorn,
     subMenu: [
-      { id: 'responses',   label: '反響管理',        icon: faEnvelope  },
+      { id: 'responses',   label: '反響管理',        icon: faEnvelope,  available: true },
       { id: 'advertising', label: '広告・媒体管理',   icon: faNewspaper },
       { id: 'inquiries',   label: 'お問い合わせ',     icon: faComments  },
       { id: 'mkt-report',  label: '集客レポート',     icon: faChartLine },
@@ -338,18 +338,28 @@ export function Sidebar({
           </>
         )}
 
-        {/* ── 他モジュール（準備中） ── */}
+        {/* ── 他モジュール（available のものだけ機能、それ以外は準備中ラベル） ── */}
         {activeModule !== 'construction' && activeModuleDef.subMenu && (
           <nav className="flex-1 overflow-y-auto py-2">
             {activeModuleDef.subMenu.map(item => (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 px-3 py-2.5 text-gray-600 cursor-not-allowed"
-              >
-                <FontAwesomeIcon icon={item.icon} className="text-[11px] w-3 shrink-0 opacity-40" />
-                <span className="text-xs flex-1">{item.label}</span>
-                <span className="text-[9px] bg-gray-800 text-gray-600 px-1 py-0.5 rounded">準備中</span>
-              </div>
+              item.available ? (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-2 px-3 py-2.5 bg-gray-800 border-l-2 border-blue-500"
+                >
+                  <FontAwesomeIcon icon={item.icon} className="text-[11px] w-3 shrink-0 text-blue-400" />
+                  <span className="text-xs flex-1 text-white font-medium">{item.label}</span>
+                </div>
+              ) : (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-2 px-3 py-2.5 text-gray-600 cursor-not-allowed"
+                >
+                  <FontAwesomeIcon icon={item.icon} className="text-[11px] w-3 shrink-0 opacity-40" />
+                  <span className="text-xs flex-1">{item.label}</span>
+                  <span className="text-[9px] bg-gray-800 text-gray-600 px-1 py-0.5 rounded">準備中</span>
+                </div>
+              )
             ))}
           </nav>
         )}

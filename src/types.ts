@@ -71,6 +71,35 @@ export interface Member {
 
 export type UserRole = 'admin' | 'editor' | 'viewer' | 'assignee' | 'sales';
 
+// マーケティング(反響管理) ─────────────────────────────────────────
+// 個人情報（contactName / contactAddress）を含むため取扱注意。
+export interface Inquiry {
+  id: string;
+  inquiryDate: string;            // YYYY-MM-DD
+  inquiryTime: string | null;     // HH:MM
+  category: string | null;        // 問合せカテゴリ
+  source: string | null;          // 反響元
+  gaSource: string | null;        // Googleアナリティクス
+  existingContact: 'with' | 'without' | null;
+  channel: 'tour' | null;
+  propertyType: PropertyType | null;
+  contactName: string | null;     // 問合せ者名前（個人情報）
+  contactAddress: string | null;  // 問合せ者住所（個人情報）
+  area: string | null;            // 反響物件エリア
+  propertyId: string | null;      // 反響物件 ID
+  salesperson: string | null;     // 営業担当
+  priceStatus: 'undisclosed' | 'public' | null;
+  format: 'mobile-report' | 'mobile-koma' | 'pc-report' | 'pc-koma' | null;
+  notes: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+}
+
+// 新規作成・更新時に渡す部分集合（id / created_at 等は DB 側で生成）
+export type InquiryInput = Omit<Inquiry, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>;
+
 export interface UserProfile {
   id: string;
   email: string;

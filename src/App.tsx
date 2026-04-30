@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBuilding, faBullhorn, faHandshake, faBars } from '@fortawesome/free-solid-svg-icons';
+import { faBuilding, faHandshake, faBars } from '@fortawesome/free-solid-svg-icons';
 import { getInitialModule, getAppTitle, getThemeColor, getThemeLabel } from './config/deployment';
 import { useAuth } from './hooks/useAuth';
 import { useProperties } from './hooks/useProperties';
 import { useTemplates } from './hooks/useTemplates';
 import { useMembers } from './hooks/useMembers';
+import { useInquiries } from './hooks/useInquiries';
 import { useTheme } from './hooks/useTheme';
 import { useRole } from './hooks/useRole';
 import { Sidebar } from './components/Sidebar';
@@ -23,16 +24,12 @@ import { SalesPlanView } from './components/SalesPlanView';
 import { SalesPlanEditModal } from './components/SalesPlanEditModal';
 import { CsvImportModal } from './components/CsvImportModal';
 import { SalesManagementView } from './components/SalesManagementView';
+import { MarketingView } from './components/MarketingView';
 import type { ModuleId } from './types';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
 // 準備中モジュールの画面定義
 const COMING_SOON: Record<string, { icon: IconDefinition; label: string; description: string }> = {
-  marketing: {
-    icon: faBullhorn,
-    label: 'マーケティング管理',
-    description: '広告・集客・反響管理など、マーケティング機能を準備中です。',
-  },
   sales: {
     icon: faHandshake,
     label: '営業管理',
@@ -94,6 +91,11 @@ export default function App() {
     await reloadProperties();
   }
   const { members } = useMembers(user?.id);
+  const {
+    inquiries,
+    loading: inquiriesLoading,
+    addInquiry, updateInquiry, deleteInquiry,
+  } = useInquiries(user?.id);
 
   // 部署別 Vercel デプロイの場合、VITE_ENABLED_MODULES の先頭を初期表示にする
   const [activeModule, setActiveModule] = useState<ModuleId>(() => getInitialModule());
@@ -183,6 +185,21 @@ export default function App() {
 
   // メインコンテンツの描画
   function renderMain() {
+    // マーケティング(反響管理)モジュール
+    if (activeModule === 'marketing') {
+      return (
+        <MarketingView
+          inquiries={inquiries}
+          properties={properties}
+          role={role}
+          loading={inquiriesLoading}
+          onAdd={(input) => addInquiry(input, userLabel)}
+          onUpdate={(id, updates) => updateInquiry(id, updates, userLabel)}
+          onDelete={deleteInquiry}
+        />
+      );
+    }
+
     // 販売管理モジュール
     if (activeModule === 'sales-management') {
       if (loading) {
