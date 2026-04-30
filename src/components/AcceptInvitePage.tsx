@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAppTitle, getThemeColor } from '../config/deployment';
 
 interface Props {
   onComplete: () => void;
@@ -19,6 +20,8 @@ export function AcceptInvitePage({ onComplete }: Props) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const appTitle = getAppTitle();
+  const themeColor = getThemeColor();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,58 +47,70 @@ export function AcceptInvitePage({ onComplete }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">Cecela</div>
-          <h1 className="text-white text-2xl font-bold">パスワード設定</h1>
-          <p className="text-gray-400 text-xs mt-2">
-            初回ログインのため、新しいパスワードを設定してください。
-          </p>
-        </div>
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      <div className="h-1 w-full shrink-0" style={{ backgroundColor: themeColor }} aria-hidden="true" />
 
-        <form onSubmit={handleSubmit} className="bg-gray-800 rounded-2xl p-8 space-y-5 shadow-2xl">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">新しいパスワード</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoFocus
-              className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="6文字以上"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">確認用</label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              required
-              minLength={6}
-              className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="同じパスワードをもう一度"
-            />
-          </div>
-
-          {error && (
-            <p className="text-red-400 text-xs bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">
-              {error}
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div
+              className="text-xs font-semibold uppercase tracking-widest mb-1"
+              style={{ color: themeColor }}
+            >
+              Cecela
+            </div>
+            <h1 className="text-white text-2xl font-bold">{appTitle}</h1>
+            <p className="text-gray-400 text-xs mt-3">
+              初回ログインのため、新しいパスワードを設定してください。
             </p>
-          )}
+          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition"
-          >
-            {loading ? '設定中...' : 'パスワードを設定してログイン'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="bg-gray-800 rounded-2xl p-8 space-y-5 shadow-2xl">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">新しいパスワード</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoFocus
+                className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
+                style={{ outlineColor: themeColor }}
+                placeholder="6文字以上"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">確認用</label>
+              <input
+                type="password"
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                required
+                minLength={6}
+                className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
+                style={{ outlineColor: themeColor }}
+                placeholder="同じパスワードをもう一度"
+              />
+            </div>
+
+            {error && (
+              <p className="text-red-400 text-xs bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition hover:brightness-110"
+              style={{ backgroundColor: themeColor }}
+            >
+              {loading ? '設定中...' : 'パスワードを設定してログイン'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
