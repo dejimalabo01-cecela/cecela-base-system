@@ -106,5 +106,6 @@ export function getInviteTargets(): InviteTarget[] {
   return [
     { label: '工程管理・販売計画システム', url: 'https://cecela-base-system.vercel.app' },
     { label: '販売管理システム',           url: 'https://cecela-sales-mgmt.vercel.app' },
+    { label: 'マーケティングシステム',     url: 'https://cecela-marketing.vercel.app' },
   ];
 }
