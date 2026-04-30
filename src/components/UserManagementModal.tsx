@@ -4,6 +4,7 @@ import { faXmark, faUsers, faShield, faPen, faEye, faPaperPlane, faTag, faTrash 
 import { supabase } from '../lib/supabase';
 import type { UserProfile, UserRole } from '../types';
 import type { Role } from '../hooks/useRole';
+import { getInviteTargets } from '../config/deployment';
 
 interface Props {
   currentUserId: string;
@@ -46,9 +47,19 @@ export function UserManagementModal({ currentUserId, currentRole, onClose }: Pro
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // 招待フォーム（admin のみ表示）
+  const inviteTargets = getInviteTargets();
+  // デフォルトの招待先：今ユーザーが見ているデプロイ（window.location.origin）と一致する
+  // ターゲットがあればそれ、無ければ最初のターゲット。
+  const defaultInviteUrl = (() => {
+    if (typeof window === 'undefined') return inviteTargets[0]?.url ?? '';
+    const origin = window.location.origin;
+    const match = inviteTargets.find(t => t.url === origin);
+    return match?.url ?? inviteTargets[0]?.url ?? origin;
+  })();
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('assignee');
+  const [inviteUrl, setInviteUrl] = useState<string>(defaultInviteUrl);
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -128,7 +139,12 @@ export function UserManagementModal({ currentUserId, currentRole, onClose }: Pro
     setInviteResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('invite-user', {
-        body: { email, role: inviteRole, displayName: inviteName.trim() || null },
+        body: {
+          email,
+          role: inviteRole,
+          displayName: inviteName.trim() || null,
+          redirectTo: inviteUrl || undefined,
+        },
       });
       if (error || data?.error) {
         let msg = data?.error ?? error?.message ?? 'エラーが発生しました';
@@ -301,6 +317,22 @@ export function UserManagementModal({ currentUserId, currentRole, onClose }: Pro
                   ))}
                 </select>
               </div>
+              {inviteTargets.length > 1 && (
+                <div>
+                  <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+                    招待先（メール内のリンクから飛ぶ画面）
+                  </label>
+                  <select
+                    value={inviteUrl}
+                    onChange={e => setInviteUrl(e.target.value)}
+                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    {inviteTargets.map(t => (
+                      <option key={t.url} value={t.url}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="email"

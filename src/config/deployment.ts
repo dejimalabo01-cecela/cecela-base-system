@@ -87,3 +87,24 @@ export function getThemeLabel(): string | null {
   const t = (import.meta.env.VITE_THEME_LABEL ?? '').trim();
   return t || null;
 }
+
+/**
+ * 招待時の「招待先システム」候補一覧。
+ * 招待された人がメールリンクから飛んだあと、どの Vercel デプロイで初回ログイン
+ * パスワード設定をするかを admin に選ばせる。新しい部署用デプロイを増やしたら
+ * ここに追加する。
+ *
+ * URL は Supabase Auth の URL Configuration → Redirect URLs に必ず登録すること
+ * （未登録 URL は Supabase が無視して Site URL にフォールバックする）。
+ */
+export interface InviteTarget {
+  label: string;
+  url: string;
+}
+
+export function getInviteTargets(): InviteTarget[] {
+  return [
+    { label: '工程管理・販売計画システム', url: 'https://cecela-base-system.vercel.app' },
+    { label: '販売管理システム',           url: 'https://cecela-sales-mgmt.vercel.app' },
+  ];
+}

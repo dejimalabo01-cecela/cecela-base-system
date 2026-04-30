@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    // リクエストボディからメール／ロール／表示名を取得
-    const { email, role, displayName } = await req.json()
+    // リクエストボディからメール／ロール／表示名／リダイレクト先を取得
+    const { email, role, displayName, redirectTo } = await req.json()
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'メールアドレスが必要です' }), {
         status: 400,
@@ -66,10 +66,38 @@ Deno.serve(async (req) => {
       ? displayName.trim()
       : null
 
+    // 招待先 URL の決定。
+    // クライアントが redirectTo を渡してきたらそれを使う（許可リストで検証）。
+    // 渡って来ないなら環境変数 SITE_URL にフォールバック（後方互換）。
+    //
+    // 許可リスト ALLOWED_REDIRECT_URLS は env に "url1,url2,..." 形式で設定する想定。
+    // これを設定しないと、SITE_URL のみが許可される（最も安全な既定）。
+    const siteUrl = (Deno.env.get('SITE_URL') ?? '').trim()
+    const allowedListRaw = (Deno.env.get('ALLOWED_REDIRECT_URLS') ?? '').trim()
+    const allowed = new Set<string>(
+      [siteUrl, ...allowedListRaw.split(',')]
+        .map(s => s.trim().replace(/\/+$/, ''))
+        .filter(Boolean)
+    )
+
+    let chosenRedirect = siteUrl
+    if (typeof redirectTo === 'string' && redirectTo.trim()) {
+      const normalized = redirectTo.trim().replace(/\/+$/, '')
+      if (allowed.has(normalized)) {
+        chosenRedirect = normalized
+      } else {
+        return new Response(JSON.stringify({
+          error: `招待先 URL が許可リストに含まれていません: ${normalized}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
     // 招待メール送信
-    const siteUrl = Deno.env.get('SITE_URL') ?? ''
     const { data, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${siteUrl}/`,
+      redirectTo: `${chosenRedirect}/`,
     })
 
     if (inviteError) {
