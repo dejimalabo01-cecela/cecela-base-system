@@ -177,7 +177,11 @@ export function GanttChart({
   onDelete, onCopy, onReorderTasks, onSetTaskHidden, onShowAllTasks,
 }: Props) {
   const today = useMemo(() => new Date(), []);
-  const canEdit = role === 'admin' || role === 'editor';
+  // 自分が見ている物件の編集（日付・名前・並び替え等）は viewer 以外なら可能。
+  // assignee も含む（彼らが見えている物件は自分の担当物件だけなので問題ない）。
+  const canEdit = role !== 'viewer';
+  // 物件の複製・担当者の付け替え・削除など「管理操作」は admin / editor のみ。
+  const canManage = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
 
   // 物件ID編集（adminのみ）
@@ -466,8 +470,9 @@ export function GanttChart({
                 <select
                   value={property.assigneeId ?? ''}
                   onChange={e => onUpdateAssignee(e.target.value || null)}
-                  disabled={!canEdit}
+                  disabled={!canManage}
                   className="text-[11px] md:text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-default max-w-[140px]"
+                  title={!canManage ? '担当者の付け替えは管理者・編集者のみ可能です' : undefined}
                 >
                   <option value="">未設定</option>
                   {members.map(m => (
@@ -549,7 +554,7 @@ export function GanttChart({
               <FontAwesomeIcon icon={faDownload} />
               <span>CSV</span>
             </button>
-            {canEdit && (
+            {canManage && (
               <button
                 onClick={onCopy}
                 className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-400 rounded-lg px-2.5 md:px-3 py-1.5 transition shrink-0"

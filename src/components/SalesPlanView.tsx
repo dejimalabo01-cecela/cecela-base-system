@@ -74,6 +74,8 @@ interface Props {
 export function SalesPlanView({
   properties, role, members, onEdit, onImportCsv, onDeleteMany, onCopyMany,
 }: Props) {
+  // 販売計画モジュールは admin / editor のみ編集可能。
+  // viewer / assignee は閲覧のみ（行クリックで編集モーダルを開かない、CSV/一括操作も非表示）。
   const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
   const todayFy = useMemo(() => fiscalYearOf(new Date()), []);

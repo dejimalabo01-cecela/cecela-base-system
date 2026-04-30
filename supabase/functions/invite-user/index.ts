@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    // リクエストボディからメールとロールを取得
-    const { email, role } = await req.json()
+    // リクエストボディからメール／ロール／表示名を取得
+    const { email, role, displayName } = await req.json()
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'メールアドレスが必要です' }), {
         status: 400,
@@ -59,9 +59,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    // ロールのバリデーション（デフォルトは editor）
-    const validRoles = ['admin', 'editor', 'viewer']
-    const inviteRole = validRoles.includes(role) ? role : 'editor'
+    // ロールのバリデーション（デフォルトは assignee = 物件担当者）
+    const validRoles = ['admin', 'editor', 'viewer', 'assignee']
+    const inviteRole = validRoles.includes(role) ? role : 'assignee'
+    const displayNameValue = (typeof displayName === 'string' && displayName.trim())
+      ? displayName.trim()
+      : null
 
     // 招待メール送信
     const siteUrl = Deno.env.get('SITE_URL') ?? ''
@@ -87,11 +90,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 指定されたロールで user_profiles を upsert
+    // 指定されたロール・表示名で user_profiles を upsert
     await supabaseAdmin.from('user_profiles').upsert({
       id: invitedUserId,
       email: email,
       role: inviteRole,
+      display_name: displayNameValue,
     })
 
     return new Response(JSON.stringify({ success: true, userId: invitedUserId, role: inviteRole }), {

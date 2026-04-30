@@ -15,7 +15,6 @@ import { LoginPage } from './components/LoginPage';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { TemplateEditorModal } from './components/TemplateEditorModal';
 import { CopyPropertyModal } from './components/CopyPropertyModal';
-import { MemberManagerModal } from './components/MemberManagerModal';
 import { PropertyListView } from './components/PropertyListView';
 import { UserManagementModal } from './components/UserManagementModal';
 import { SalesPlanView } from './components/SalesPlanView';
@@ -70,7 +69,7 @@ export default function App() {
     await deleteTemplate(id);
     await reloadProperties();
   }
-  const { members, addMember, deleteMember } = useMembers(user?.id);
+  const { members } = useMembers(user?.id);
 
   // 部署別 Vercel デプロイの場合、VITE_ENABLED_MODULES の先頭を初期表示にする
   const [activeModule, setActiveModule] = useState<ModuleId>(() => getInitialModule());
@@ -83,7 +82,6 @@ export default function App() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showMemberModal, setShowMemberModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showList, setShowList] = useState(false);
@@ -289,7 +287,6 @@ export default function App() {
           onSignOut={signOut}
           onChangePassword={withClose(() => setShowPasswordModal(true))}
           onEditTemplates={withClose(() => setShowTemplateModal(true))}
-          onManageMembers={withClose(() => setShowMemberModal(true))}
           onManageUsers={withClose(() => setShowUserModal(true))}
           isDark={isDark}
           onToggleTheme={toggleTheme}
@@ -331,14 +328,6 @@ export default function App() {
           onReorder={reorderTemplates}
           onSync={() => syncWithTemplates(templates)}
           onClose={() => setShowTemplateModal(false)}
-        />
-      )}
-      {showMemberModal && (
-        <MemberManagerModal
-          members={members}
-          onAdd={addMember}
-          onDelete={deleteMember}
-          onClose={() => setShowMemberModal(false)}
         />
       )}
       {showCopyModal && selectedProperty && (

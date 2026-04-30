@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
-export type Role = 'admin' | 'editor' | 'viewer';
+export type Role = 'admin' | 'editor' | 'viewer' | 'assignee';
 
 export function useRole(userId: string | undefined) {
   const [role, setRole] = useState<Role>('admin'); // default until loaded

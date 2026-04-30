@@ -9,7 +9,6 @@ import {
   faKey,
   faPenRuler,
   faUsers,
-  faUser,
   faBuilding,
   faBullhorn,
   faHandshake,
@@ -100,7 +99,6 @@ interface Props {
   onSignOut: () => void;
   onChangePassword: () => void;
   onEditTemplates: () => void;
-  onManageMembers: () => void;
   onManageUsers: () => void;
   isDark: boolean;
   onToggleTheme: () => void;
@@ -112,15 +110,26 @@ export function Sidebar({
   activeModule, onChangeModule,
   properties, selectedId, showList, onShowList, onSelect, onNew,
   onSignOut, onChangePassword,
-  onEditTemplates, onManageMembers, onManageUsers,
+  onEditTemplates, onManageUsers,
   isDark, onToggleTheme, role,
   onCloseMobile,
 }: Props) {
-  const canEdit = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
+  const isAssignee = role === 'assignee';
+  // 物件の新規作成・一括操作・テンプレート編集など「管理操作」は admin / editor のみ。
+  // 物件担当者(assignee) は自分の物件の編集はできるが、新規作成や一括操作は不可。
+  const canManage = role === 'admin' || role === 'editor';
   // VITE_ENABLED_MODULES で部署別 Vercel に表示モジュールを絞る
   const enabledModules = useMemo(() => getEnabledModules(), []);
-  const visibleModules = useMemo(() => MODULES.filter(m => enabledModules.has(m.id)), [enabledModules]);
+  // assignee（物件担当者）が見られるのは 工程管理 と 販売計画 のみ。
+  // 販売管理・マーケ・営業 はメニューに出さない。
+  const allowedForRole = useMemo(() => {
+    if (isAssignee) return new Set<ModuleId>(['construction', 'sales-plan']);
+    return null; // 制限なし
+  }, [isAssignee]);
+  const visibleModules = useMemo(() => MODULES.filter(m =>
+    enabledModules.has(m.id) && (!allowedForRole || allowedForRole.has(m.id))
+  ), [enabledModules, allowedForRole]);
   const appTitle = useMemo(() => getAppTitle(), []);
   const activeModuleDef = visibleModules.find(m => m.id === activeModule) ?? visibleModules[0] ?? MODULES[0];
 
@@ -235,7 +244,7 @@ export function Sidebar({
                 <FontAwesomeIcon icon={faTableList} className="text-[10px]" />
                 物件一覧
               </button>
-              {canEdit && (
+              {canManage && (
                 <button
                   onClick={onNew}
                   className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg py-2 transition flex items-center justify-center gap-1.5"
@@ -276,10 +285,10 @@ export function Sidebar({
                 </div>
               )}
 
-              {/* 工程管理の設定メニュー */}
-              <nav className="py-2 px-2 space-y-0.5">
-                <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
-                {isAdmin && (
+              {/* 工程管理の設定メニュー（admin のみ表示） */}
+              {isAdmin && (
+                <nav className="py-2 px-2 space-y-0.5">
+                  <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
                   <button
                     onClick={onEditTemplates}
                     className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
@@ -287,17 +296,8 @@ export function Sidebar({
                     <FontAwesomeIcon icon={faPenRuler} className="w-3 opacity-60" />
                     テンプレート
                   </button>
-                )}
-                {(isAdmin || canEdit) && (
-                  <button
-                    onClick={onManageMembers}
-                    className="w-full text-left text-[11px] text-gray-400 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
-                  >
-                    <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
-                    担当者管理
-                  </button>
-                )}
-              </nav>
+                </nav>
+              )}
             </div>
           </>
         )}

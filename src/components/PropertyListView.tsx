@@ -41,7 +41,8 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
     DEFAULT_COL_WIDTHS,
   );
 
-  const canEdit = role === 'admin' || role === 'editor';
+  // 物件の新規作成・複製・削除など管理操作は admin / editor のみ。
+  const canManage = role === 'admin' || role === 'editor';
   const isAdmin = role === 'admin';
 
   function getAssigneeName(property: Property) {
@@ -242,7 +243,7 @@ export function PropertyListView({ properties, members, role, onSelect, onDelete
               <FontAwesomeIcon icon={faFileExcel} />
               <span>Excel{selected.size > 0 ? `（${selected.size}）` : ''}</span>
             </button>
-            {canEdit && (
+            {canManage && (
               <button
                 onClick={handleBulkCopy}
                 disabled={selected.size === 0 || copying}

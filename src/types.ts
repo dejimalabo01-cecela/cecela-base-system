@@ -69,10 +69,13 @@ export interface Member {
   name: string;
 }
 
+export type UserRole = 'admin' | 'editor' | 'viewer' | 'assignee';
+
 export interface UserProfile {
   id: string;
   email: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: UserRole;
+  displayName?: string | null;
 }
 
 // サイドバーのモジュール定義
