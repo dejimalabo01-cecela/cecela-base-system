@@ -133,14 +133,38 @@ export function useProperties(userId: string | undefined) {
   }, [load, userId]);
 
   async function addProperty(name: string, opts?: { assigneeId?: string | null }) {
-    const id = generatePropertyId(properties);
+    // assignee は RLS で自分の物件しか SELECT できないため、ローカルの properties から
+    // generatePropertyId しても admin が作った既存物件と ID が衝突する。
+    // そのため呼び出し元が「自分担当」前提の場合（= assignee が新規作成する場合）は
+    // SECURITY DEFINER の next_property_id() RPC で全行ベースの安全なIDを取得する。
+    let id: string;
+    if (opts?.assigneeId) {
+      const { data: rpcId, error: rpcError } = await supabase.rpc('next_property_id');
+      if (rpcError || !rpcId) {
+        console.error('next_property_id RPC error:', rpcError);
+        // フォールバック：ローカル算出（衝突する可能性あり）
+        id = generatePropertyId(properties);
+      } else {
+        id = String(rpcId);
+      }
+    } else {
+      id = generatePropertyId(properties);
+    }
+
     const insertRow: Record<string, unknown> = { id, name };
     // assignee 役のユーザーが新規登録するときは、自分自身を担当者として明示的に
     // セットする（RLS で自分の物件しか見えなくなるので、未設定だと作った直後に
     // 自分でも見えなくなる）。
     if (opts?.assigneeId) insertRow.assignee_id = opts.assigneeId;
     const { error: propError } = await supabase.from('properties').insert(insertRow);
-    if (propError) { console.error('property insert error:', propError); return; }
+    if (propError) {
+      console.error('property insert error:', propError);
+      // ユーザーが原因に気付けるよう alert（無音失敗を避ける）
+      if (typeof window !== 'undefined') {
+        alert(`物件の登録に失敗しました：${propError.message}\n\nschema_update_v9.sql / v10.sql が Supabase で実行済みかご確認ください。`);
+      }
+      return;
+    }
 
     const { data: templates } = await supabase
       .from('task_templates')
