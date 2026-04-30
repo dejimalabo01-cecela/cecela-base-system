@@ -9,6 +9,7 @@ import {
   faKey,
   faPenRuler,
   faUsers,
+  faUser,
   faBuilding,
   faBullhorn,
   faHandshake,
@@ -100,6 +101,7 @@ interface Props {
   onChangePassword: () => void;
   onEditTemplates: () => void;
   onManageUsers: () => void;
+  onEditProfile: () => void;
   isDark: boolean;
   onToggleTheme: () => void;
   role: Role;
@@ -112,7 +114,7 @@ export function Sidebar({
   activeModule, onChangeModule,
   properties, selectedId, showList, onShowList, onSelect, onNew,
   onSignOut, onChangePassword,
-  onEditTemplates, onManageUsers,
+  onEditTemplates, onManageUsers, onEditProfile,
   isDark, onToggleTheme, role,
   themeColor, themeLabel,
   onCloseMobile,
@@ -122,6 +124,8 @@ export function Sidebar({
   // 物件の新規作成・一括操作・テンプレート編集など「管理操作」は admin / editor のみ。
   // 物件担当者(assignee) は自分の物件の編集はできるが、新規作成や一括操作は不可。
   const canManage = role === 'admin' || role === 'editor';
+  // ユーザー管理画面（招待・削除は admin のみ、表示名編集は admin/editor 共通で可能）
+  const canOpenUserMgmt = role === 'admin' || role === 'editor';
   // VITE_ENABLED_MODULES で部署別 Vercel に表示モジュールを絞る
   const enabledModules = useMemo(() => getEnabledModules(), []);
   // assignee（物件担当者）が見られるのは 工程管理 と 販売計画 のみ。
@@ -215,13 +219,22 @@ export function Sidebar({
         {/* 設定・ユーザー */}
         <div className="border-t border-gray-700 px-2 py-2 space-y-0.5">
           <div className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pb-1">設定</div>
-          {isAdmin && (
+          {canOpenUserMgmt && (
             <button
               onClick={onManageUsers}
               className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
             >
               <FontAwesomeIcon icon={faUsers} className="w-3 opacity-60" />
               ユーザー管理
+            </button>
+          )}
+          {isAssignee && (
+            <button
+              onClick={onEditProfile}
+              className="w-full text-left text-[11px] text-gray-500 hover:text-white px-2 py-1.5 rounded hover:bg-gray-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faUser} className="w-3 opacity-60" />
+              プロフィール
             </button>
           )}
           <button

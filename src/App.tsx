@@ -12,7 +12,9 @@ import { Sidebar } from './components/Sidebar';
 import { NewPropertyModal } from './components/NewPropertyModal';
 import { GanttChart } from './components/GanttChart';
 import { LoginPage } from './components/LoginPage';
+import { AcceptInvitePage } from './components/AcceptInvitePage';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { ProfileEditModal } from './components/ProfileEditModal';
 import { TemplateEditorModal } from './components/TemplateEditorModal';
 import { CopyPropertyModal } from './components/CopyPropertyModal';
 import { PropertyListView } from './components/PropertyListView';
@@ -38,10 +40,23 @@ const COMING_SOON: Record<string, { icon: IconDefinition; label: string; descrip
   },
 };
 
+// 招待リンク / パスワードリセットリンクから来たかどうかを、URL hash から検出する。
+// supabase-js は detectSessionInUrl=true（既定）なので、初回マウント前に一度 hash を見ておく。
+// これより後では supabase が hash をクリアしてしまうため、モジュールロード時の値を保持する。
+const initialAuthFlow: 'invite' | 'recovery' | null = (() => {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash || '';
+  if (hash.includes('type=invite')) return 'invite';
+  if (hash.includes('type=recovery')) return 'recovery';
+  return null;
+})();
+
 export default function App() {
   const { user, loading: authLoading, signIn, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { role, displayName } = useRole(user?.id);
+  const { role, displayName, loadRole } = useRole(user?.id);
+  // 初回ログイン or パスワードリセット完了までは AcceptInvitePage を出す
+  const [pendingAuthFlow, setPendingAuthFlow] = useState<'invite' | 'recovery' | null>(initialAuthFlow);
   const {
     properties, selectedProperty, selectedId, loading,
     load: reloadProperties,
@@ -84,6 +99,7 @@ export default function App() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showList, setShowList] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesPlanEditId, setSalesPlanEditId] = useState<string | null>(null);
@@ -99,6 +115,22 @@ export default function App() {
 
   if (!user) {
     return <LoginPage onSignIn={signIn} />;
+  }
+
+  // 招待リンク / リセットリンクからの初回フロー
+  // （supabase が自動でセッションを設定してくれているので、パスワードを設定するだけで完了）
+  if (pendingAuthFlow) {
+    return (
+      <AcceptInvitePage
+        onComplete={() => {
+          setPendingAuthFlow(null);
+          // URL から hash を取り除く（戻るで再表示されないように）
+          if (window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        }}
+      />
+    );
   }
 
   function handleSelectProperty(id: string) {
@@ -296,6 +328,7 @@ export default function App() {
           onChangePassword={withClose(() => setShowPasswordModal(true))}
           onEditTemplates={withClose(() => setShowTemplateModal(true))}
           onManageUsers={withClose(() => setShowUserModal(true))}
+          onEditProfile={withClose(() => setShowProfileModal(true))}
           isDark={isDark}
           onToggleTheme={toggleTheme}
           role={role}
@@ -351,7 +384,20 @@ export default function App() {
       {showUserModal && (
         <UserManagementModal
           currentUserId={user.id}
-          onClose={() => setShowUserModal(false)}
+          currentRole={role}
+          onClose={() => {
+            setShowUserModal(false);
+            // 自分の表示名を変えていた場合に hooks 側のキャッシュを更新
+            loadRole();
+          }}
+        />
+      )}
+      {showProfileModal && (
+        <ProfileEditModal
+          userId={user.id}
+          email={userEmail}
+          onSaved={() => loadRole()}
+          onClose={() => setShowProfileModal(false)}
         />
       )}
       {salesPlanEditId && (() => {

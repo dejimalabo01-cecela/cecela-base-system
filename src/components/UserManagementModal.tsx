@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faUsers, faShield, faPen, faEye, faPaperPlane, faTag } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faUsers, faShield, faPen, faEye, faPaperPlane, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, UserRole } from '../types';
+import type { Role } from '../hooks/useRole';
 
 interface Props {
   currentUserId: string;
+  currentRole: Role;
   onClose: () => void;
 }
 
@@ -32,14 +34,18 @@ const ROLE_COLORS: Record<UserRole, string> = {
 
 const ROLE_OPTIONS: UserRole[] = ['admin', 'editor', 'viewer', 'assignee'];
 
-export function UserManagementModal({ currentUserId, onClose }: Props) {
+export function UserManagementModal({ currentUserId, currentRole, onClose }: Props) {
+  // admin は全権限。editor は表示名の変更だけ可能（招待・削除・ロール変更は不可）
+  const isAdmin = currentRole === 'admin';
+
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // 招待フォーム
+  // 招待フォーム（admin のみ表示）
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('assignee');
@@ -79,6 +85,39 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, displayName: trimmed || null } : u));
     setSaving(null);
     setEditingNameId(null);
+  }
+
+  async function handleDelete(u: UserProfile) {
+    if (u.id === currentUserId) {
+      alert('自分自身は削除できません');
+      return;
+    }
+    const label = u.displayName || u.email;
+    if (!confirm(`「${label}」を削除しますか？\nこの操作は取り消せません。\n\n・このユーザーがログインできなくなります\n・このユーザーが担当している物件の担当は自動で解除されます`)) {
+      return;
+    }
+    setDeletingId(u.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: u.id },
+      });
+      if (error || data?.error) {
+        let msg = data?.error ?? error?.message ?? '削除に失敗しました';
+        if (!data?.error && error && 'context' in error) {
+          try {
+            const body = await (error as { context: Response }).context.json();
+            if (body?.error) msg = body.error;
+          } catch { /* ignore */ }
+        }
+        alert(`削除に失敗しました：${msg}`);
+        return;
+      }
+      setUsers(prev => prev.filter(x => x.id !== u.id));
+    } catch (err) {
+      alert(`削除に失敗しました：${String(err)}`);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -135,6 +174,11 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
             <div><span className="font-semibold">閲覧のみ</span>：全物件の閲覧・エクスポートのみ（編集不可）</div>
             <div><span className="font-semibold">物件担当者</span>：自分が担当の物件のみ閲覧・編集可能</div>
           </div>
+          {!isAdmin && (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 px-1">
+              編集者は表示名のみ変更できます。役割の変更・招待・削除は管理者のみ可能です。
+            </p>
+          )}
         </div>
 
         {/* User list */}
@@ -149,13 +193,14 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
             users.map(u => {
               const isMe = u.id === currentUserId;
               const editingName = editingNameId === u.id;
+              const isDeleting = deletingId === u.id;
               return (
                 <div
                   key={u.id}
                   className="flex items-start gap-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg px-4 py-3"
                 >
                   <div className="flex-1 min-w-0">
-                    {/* 表示名（編集可） */}
+                    {/* 表示名（admin/editor は編集可） */}
                     <div className="flex items-center gap-2 mb-0.5">
                       {editingName ? (
                         <input
@@ -193,21 +238,35 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
                     </div>
                   </div>
 
-                  <div className="shrink-0 pt-0.5">
-                    {saving === u.id ? (
-                      <span className="text-xs text-blue-400">保存中...</span>
+                  <div className="shrink-0 pt-0.5 flex items-center gap-2">
+                    {saving === u.id || isDeleting ? (
+                      <span className="text-xs text-blue-400">{isDeleting ? '削除中...' : '保存中...'}</span>
                     ) : isMe ? (
                       <span className="text-xs text-gray-400 dark:text-gray-500">変更不可</span>
+                    ) : isAdmin ? (
+                      <>
+                        <select
+                          value={u.role}
+                          onChange={e => handleRoleChange(u.id, e.target.value as UserRole)}
+                          className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        >
+                          {ROLE_OPTIONS.map(r => (
+                            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleDelete(u)}
+                          title="このユーザーを削除"
+                          className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition w-7 h-7 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                          aria-label="ユーザーを削除"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                        </button>
+                      </>
                     ) : (
-                      <select
-                        value={u.role}
-                        onChange={e => handleRoleChange(u.id, e.target.value as UserRole)}
-                        className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      >
-                        {ROLE_OPTIONS.map(r => (
-                          <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                        ))}
-                      </select>
+                      <span className={`text-xs ${ROLE_COLORS[u.role]} opacity-70`}>
+                        {ROLE_LABELS[u.role]}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -216,63 +275,65 @@ export function UserManagementModal({ currentUserId, onClose }: Props) {
           )}
         </div>
 
-        {/* 招待フォーム */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2 flex items-center gap-1.5">
-            <FontAwesomeIcon icon={faPaperPlane} className="text-blue-500" />
-            新しいユーザーを招待
-          </p>
-          <form onSubmit={handleInvite} className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={inviteName}
-                onChange={e => setInviteName(e.target.value)}
-                placeholder="表示名（例：田中 太郎）"
-                className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-              />
-              <select
-                value={inviteRole}
-                onChange={e => setInviteRole(e.target.value as UserRole)}
-                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
-              >
-                {ROLE_OPTIONS.map(r => (
-                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                placeholder="メールアドレス"
-                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-              />
-              <button
-                type="submit"
-                disabled={!inviteEmail.trim() || inviting}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium rounded-lg px-4 transition flex items-center gap-1.5 shrink-0"
-              >
-                <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
-                {inviting ? '送信中...' : '招待'}
-              </button>
-            </div>
-          </form>
-
-          {inviteResult && (
-            <p className={`mt-2 text-xs px-3 py-2 rounded-lg border ${
-              inviteResult.ok
-                ? 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'
-                : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
-            }`}>
-              {inviteResult.msg}
+        {/* 招待フォーム（admin のみ） */}
+        {isAdmin && (
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+              <FontAwesomeIcon icon={faPaperPlane} className="text-blue-500" />
+              新しいユーザーを招待
             </p>
-          )}
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-            招待されたユーザーはメールのリンクからパスワードを設定してログインできます。物件担当者で招待した場合、「工程管理」「販売計画」のうち自分が担当の物件のみが見えます。
-          </p>
-        </div>
+            <form onSubmit={handleInvite} className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={inviteName}
+                  onChange={e => setInviteName(e.target.value)}
+                  placeholder="表示名（例：田中 太郎）"
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={e => setInviteRole(e.target.value as UserRole)}
+                  className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {ROLE_OPTIONS.map(r => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="メールアドレス"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!inviteEmail.trim() || inviting}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium rounded-lg px-4 transition flex items-center gap-1.5 shrink-0"
+                >
+                  <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
+                  {inviting ? '送信中...' : '招待'}
+                </button>
+              </div>
+            </form>
+
+            {inviteResult && (
+              <p className={`mt-2 text-xs px-3 py-2 rounded-lg border ${
+                inviteResult.ok
+                  ? 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'
+                  : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
+              }`}>
+                {inviteResult.msg}
+              </p>
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+              招待されたユーザーはメールのリンクからパスワードを設定してログインできます。物件担当者で招待した場合、「工程管理」「販売計画」のうち自分が担当の物件のみが見えます。
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
