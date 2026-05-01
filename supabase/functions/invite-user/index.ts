@@ -119,12 +119,22 @@ Deno.serve(async (req) => {
     }
 
     // 指定されたロール・表示名で user_profiles を upsert
-    await supabaseAdmin.from('user_profiles').upsert({
+    const { error: upsertError } = await supabaseAdmin.from('user_profiles').upsert({
       id: invitedUserId,
       email: email,
       role: inviteRole,
       display_name: displayNameValue,
     })
+
+    if (upsertError) {
+      console.error('user_profiles upsert failed:', upsertError)
+      return new Response(JSON.stringify({
+        error: `ユーザーを招待しましたが、ロールの設定に失敗しました: ${upsertError.message}`,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     return new Response(JSON.stringify({ success: true, userId: invitedUserId, role: inviteRole }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

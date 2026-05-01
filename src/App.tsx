@@ -51,7 +51,7 @@ const initialAuthFlow: 'invite' | 'recovery' | null = (() => {
 export default function App() {
   const { user, loading: authLoading, signIn, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { role, displayName, loadRole } = useRole(user?.id);
+  const { role, displayName, roleLoading, loadRole } = useRole(user?.id);
   // 初回ログイン or パスワードリセット完了までは AcceptInvitePage を出す
   const [pendingAuthFlow, setPendingAuthFlow] = useState<'invite' | 'recovery' | null>(initialAuthFlow);
   const {
@@ -99,6 +99,16 @@ export default function App() {
 
   // 部署別 Vercel デプロイの場合、VITE_ENABLED_MODULES の先頭を初期表示にする
   const [activeModule, setActiveModule] = useState<ModuleId>(() => getInitialModule());
+
+  // ロール確定後、そのロールがアクセスできないモジュールに居たら適切な画面へ切り替える
+  useEffect(() => {
+    if (roleLoading) return;
+    if (role === 'sales' && activeModule !== 'sales-management') {
+      setActiveModule('sales-management');
+    } else if (role === 'assignee' && activeModule === 'sales-management') {
+      setActiveModule('construction');
+    }
+  }, [role, roleLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ブラウザタブのタイトルを VITE_APP_TITLE で上書き
   useEffect(() => {
